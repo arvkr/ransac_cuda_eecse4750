@@ -5,6 +5,7 @@ import math
 import sys
 import os
 import datetime
+import time
 
 # Ransac parameters
 ransac_iterations = 20  # number of iterations
@@ -13,7 +14,7 @@ ransac_ratio = 0.6      # ratio of inliers required to assert
                         # that a model fits well to data
  
 # generate sparse input data
-n_samples = 500               # number of input points
+n_samples = 4096            # number of input points||| Max tested = 3554432
 outliers_ratio = 0.4          # ratio of outliers
 
 # What is the purpose of these 2 variables below:
@@ -143,6 +144,7 @@ model_c = 0.
 folder_name = os.path.join(os.getcwd(), 'serial_' + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
 os.makedirs(folder_name)
  
+tik = time.time()
 # perform RANSAC iterations
 for it in range(ransac_iterations):
  
@@ -203,6 +205,9 @@ for it in range(ransac_iterations):
     if num > n_samples*ransac_ratio:
         print ('The model is found !')
         break
+
+tok = time.time()
+print('Time Taken = ', tok - tik)
 
 # plot the final model
 ransac_plot(0, x_noise,y_noise, model_m, model_c, True)

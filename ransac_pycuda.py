@@ -17,7 +17,7 @@ ransac_ratio = 0.6      # ratio of inliers required to assert
                         # that a model fits well to data
  
 # generate sparse input data
-n_samples = 500               # number of input points
+n_samples = 4096               # number of input points ||| Max tested = 3554432
 outliers_ratio = 0.4          # ratio of outliers
  
 n_inputs = 1
@@ -179,6 +179,7 @@ kernelwrapper = """
 
     """
 
+tik = time.time()
 # perform RANSAC iterations
 for it in range(ransac_iterations):
  
@@ -214,7 +215,8 @@ for it in range(ransac_iterations):
     dist_output_d = gpuarray.to_gpu(output)
     blockSize = 1024
     blockDim = (blockSize, 1, 1) 
-    gridSize = (1, 1, 1)
+    gridDim = int((output.shape[0] - 1) / 1024 + 1)
+    gridSize = (gridDim, 1, 1)
 
     dist = mod.get_function('distance')
 
@@ -250,6 +252,9 @@ for it in range(ransac_iterations):
     if num > n_samples*ransac_ratio:
         print ('The model is found !')
         break
+
+tok = time.time()
+print('Time Taken = ', tok - tik)
 
 # plot the final model
 ransac_plot(0, x_noise,y_noise, model_m, model_c, True)

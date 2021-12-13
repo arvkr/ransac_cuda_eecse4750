@@ -22,7 +22,9 @@ outliers_ratio = 0.4          # ratio of outliers
  
 n_inputs = 1
 n_outputs = 1
- 
+
+np.random.seed(42)
+
 # generate samples
 x = 30*np.random.random((n_samples, n_inputs) )
  
@@ -210,8 +212,8 @@ for it in range(ransac_iterations):
 
     points_d = gpuarray.to_gpu(test_points)
     dist_output_d = gpuarray.to_gpu(output)
-    blockSize = 32
-    blockDim = (blockSize, 1, 1)
+    blockSize = 1024
+    blockDim = (blockSize, 1, 1) 
     gridSize = (1, 1, 1)
 
     dist = mod.get_function('distance')

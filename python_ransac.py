@@ -3,6 +3,8 @@ import scipy
 import matplotlib.pyplot as plt
 import math
 import sys
+import os
+import datetime
 
 # Ransac parameters
 ransac_iterations = 20  # number of iterations
@@ -17,6 +19,8 @@ outliers_ratio = 0.4          # ratio of outliers
 # What is the purpose of these 2 variables below:
 n_inputs = 1
 n_outputs = 1
+
+np.random.seed(42)
  
 # generate samples
 x = 30*np.random.random((n_samples, n_inputs) )
@@ -87,7 +91,7 @@ def ransac_plot(n, x, y, m, c, final=False, x_in=(), y_in=(), points=()):
     :param x_in   inliers x
     :param y_in   inliers y
     """
- 
+
     fname = "figure_" + str(n) + ".png"
     line_width = 1.
     line_color = '#0080ff'
@@ -126,6 +130,7 @@ def ransac_plot(n, x, y, m, c, final=False, x_in=(), y_in=(), points=()):
  
     plt.title(title)
     plt.legend()
+    # plt.savefig(os.path.join(folder, fname))
     plt.savefig(fname)
     plt.close()
 
@@ -134,6 +139,9 @@ data = np.hstack( (x_noise,y_noise) )
 ratio = 0.
 model_m = 0.
 model_c = 0.
+
+folder_name = os.path.join(os.getcwd(), 'serial_' + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+os.makedirs(folder_name)
  
 # perform RANSAC iterations
 for it in range(ransac_iterations):

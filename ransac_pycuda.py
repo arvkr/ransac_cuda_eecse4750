@@ -210,8 +210,8 @@ for it in range(ransac_iterations):
         model_c = c
  
     print ('  inlier ratio = ', num/float(n_samples))
-    print ('  model_m = ', model_m)
-    print ('  model_c = ', model_c)
+    print ('  model_m = ', m)
+    print ('  model_c = ', c)
  
     # plot the current step
     # ransac_plot(it, x_noise,y_noise, m, c, False, x_inliers, y_inliers, maybe_points)

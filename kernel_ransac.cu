@@ -1,7 +1,7 @@
+#include "float.h"
 __global__ void distance(const float *points, float *output, float m, float c, int N){
 
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-
     if (i < N){
 
         // 2 is hard coded but it is 2d points
@@ -17,7 +17,6 @@ __global__ void distance(const float *points, float *output, float m, float c, i
         //printf("%0.2f ", x1);
         //printf("%0.2f ", y1);
         //printf("%0.2f", dist);
-
         output[i] = dist;
 
         // __syncthreads();
@@ -31,8 +30,21 @@ __global__ void distance(const float *points, float *output, float m, float c, i
     } 
 }
 
-// __global__ void find_line_model(const float *maybe_points1, const float *maybe_points2, float *m, float *c){
+__global__ void find_line_model(const float *maybe_points1, const float *maybe_points2, float *m, float *c, int num_models){
 
-//     int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
 
-// }
+    if (i < num_models){
+
+        float x1 = maybe_points1[i*2];
+        float y1 = maybe_points1[i*2 + 1];
+
+        float x2 = maybe_points2[i*2];
+        float y2 = maybe_points2[i*2 + 1];
+
+        m[i] = (y2 - y1)/(x2 - x1 + FLT_MIN);
+        c[i] = y2 - m[i]*x2;
+
+    }
+
+}

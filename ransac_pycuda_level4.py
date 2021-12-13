@@ -1,10 +1,14 @@
 import numpy as np
-import scipy
 import matplotlib.pyplot as plt
 import math
+import scipy
 import sys
-import os
-import datetime
+from numpy.core.fromnumeric import size
+from pycuda import driver, compiler, gpuarray, tools
+import pycuda.driver as cuda
+from pycuda.compiler import SourceModule
+import pycuda.autoinit
+import time
 
 # Ransac parameters
 ransac_iterations = 20  # number of iterations
@@ -15,13 +19,12 @@ ransac_ratio = 0.6      # ratio of inliers required to assert
 # generate sparse input data
 n_samples = 12000               # number of input points
 outliers_ratio = 0.4          # ratio of outliers
-
-# What is the purpose of these 2 variables below:
+ 
 n_inputs = 1
 n_outputs = 1
 
 np.random.seed(21)
- 
+
 # generate samples
 x = 30*np.random.random((n_samples, n_inputs) )
  
@@ -91,7 +94,7 @@ def ransac_plot(n, x, y, m, c, final=False, x_in=(), y_in=(), points=()):
     :param x_in   inliers x
     :param y_in   inliers y
     """
-
+ 
     fname = "figure_" + str(n) + ".png"
     line_width = 1.
     line_color = '#0080ff'
@@ -130,20 +133,15 @@ def ransac_plot(n, x, y, m, c, final=False, x_in=(), y_in=(), points=()):
  
     plt.title(title)
     plt.legend()
-    # plt.savefig(os.path.join(folder, fname))
     plt.savefig(fname)
     plt.close()
 
-data = np.hstack( (x_noise,y_noise) )
+data = np.hstack( (x_noise,y_noise) ).astype(np.float32)
+data = np.array(data)
  
 ratio = 0.
 model_m = 0.
 model_c = 0.
-
-# folder_name = os.path.join(os.getcwd(), 'serial_' + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
-# os.makedirs(folder_name)
- 
-# perform RANSAC iterations
 
 all_indices = np.arange(x_noise.shape[0])
 maybe_indices1 = np.random.choice(all_indices, size=(ransac_iterations), replace=True)
@@ -151,58 +149,80 @@ maybe_indices2 = np.random.choice(all_indices, size=(ransac_iterations), replace
 same_indices = (maybe_indices1 == maybe_indices2)
 maybe_indices1[same_indices] +=1
 
+# pick up two random points
 maybe_points1 = data[maybe_indices1, :]
 maybe_points2 = data[maybe_indices2, :]
 
-for it in range(ransac_iterations):
- 
-    # pick up two random points
- 
-    # find a line model for these points
-    maybe_points = np.vstack((maybe_points1[it], maybe_points2[it]))
-    m, c = find_line_model(maybe_points)
- 
-    x_list = []
-    y_list = []
-    num = 0
- 
-    # find orthogonal lines to the model for all testing points. 
-    # Test over maybe_points also since it is easier in terms of calculation.
-    for ind in range(data.shape[0]):
- 
-        x0 = data[ind,0]
-        y0 = data[ind,1]
- 
-        # find an intercept point of the model with a normal from point (x0,y0)
-        x1, y1 = find_intercept_point(m, c, x0, y0)
- 
-        # distance from point to the model
-        dist = math.sqrt((x1 - x0)**2 + (y1 - y0)**2)
- 
-        # check whether it's an inlier or not
-        if dist < ransac_threshold:
-            x_list.append(x0)
-            y_list.append(y0)
-            num += 1
-    
-    # Removing the cnt of points that were used for modelling from the inlier set
-    num -=2
+mod = SourceModule(open('kernel_ransac.cu').read())
+maybe_points1_d = gpuarray.to_gpu(maybe_points1)
+maybe_points2_d = gpuarray.to_gpu(maybe_points2)
+m_d = gpuarray.empty(shape=ransac_iterations, dtype=np.float32)
+c_d = gpuarray.empty(shape=ransac_iterations, dtype=np.float32)
+blockDim_model = (ransac_iterations, 1, 1) 
+gridSize_model = (1, 1, 1)
 
-    x_inliers = np.array(x_list)
-    y_inliers = np.array(y_list)
+cuda_find_line_model = mod.get_function('find_line_model')
+
+# find a line model for these points
+cuda_find_line_model(maybe_points1_d, maybe_points2_d, m_d, c_d, np.int32(ransac_iterations), block=blockDim_model, grid=gridSize_model)
+
+m_host = m_d.get()
+c_host = c_d.get()
+
+x_list = []
+y_list = []
+
+# output = np.zeros(shape=(data.shape[0]*ransac_iterations), dtype=np.float32)
+
+e_start = cuda.Event()
+e_end = cuda.Event()
+
+points_d = gpuarray.to_gpu(data)
+# dist_output_d = gpuarray.to_gpu(output)
+dist_output_d = gpuarray.empty(shape=(data.shape[0]*ransac_iterations), dtype=np.float32)
+blockSize = 1024
+blockDim = (blockSize, 1, 1)
+
+gridSize = (((data.shape[0] - 1)//1024 + 1), ransac_iterations, 1)
+
+dist_model_parallel_large = mod.get_function('distance_model_parallel_large')
+
+dist_model_parallel_large(points_d, dist_output_d, m_d, c_d, np.int32(data.shape[0]), block=blockDim, grid=gridSize)
+
+e_end.record()
+e_end.synchronize()
+
+distances = dist_output_d.get()
+distances = distances.reshape((ransac_iterations, data.shape[0]))
+print(distances.shape)
+
+# perform RANSAC iterations
+dists = np.logical_and([distances > 0], [distances < ransac_threshold])[0]
+num_all = np.sum(dists, axis=1)
+num_all -= 2
+print('Num = ', num_all, num_all.shape)
+
+for it in range(ransac_iterations):
+
+    m = m_host[it]
+    c = c_host[it]
+    num = num_all[it]
+ 
+    #x_inliers = np.array(x_list)
+    #y_inliers = np.array(y_list)
  
     # in case a new model is better - cache it
     if num/float(n_samples-2) > ratio:
         ratio = num/float(n_samples)
         model_m = m
         model_c = c
-    print('num inlier pts = ', num)
+ 
     print ('  inlier ratio = ', num/float(n_samples))
     print ('  model_m = ', m)
     print ('  model_c = ', c)
  
     # plot the current step
-    ransac_plot(it, x_noise,y_noise, m, c, False, x_inliers, y_inliers, maybe_points)
+    # ransac_plot(it, x_noise,y_noise, m, c, False, x_inliers, y_inliers, maybe_points)
  
     # we are done in case we have enough inliers
     if num > n_samples*ransac_ratio:

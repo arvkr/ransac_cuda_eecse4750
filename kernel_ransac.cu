@@ -58,28 +58,35 @@ __global__ void distance_model_parallel(const float *points, float *output, floa
 
     if (tx < num_samples){
 
-        // 2 is hard coded but it is 2d points
         float x0 = points[tx*2];
         float y0 = points[tx*2 + 1];
-        // printf("%0.2f ", x0);
-        // printf("%0.2f ", y0);
 
         // intersection point with the model
         float x1 = (x0 + (m*y0) - (m*c))/(1 + (m*m));
         float y1 = ((m*x0) + ((m*m)*y0) - ((m*m)*c))/(1 + (m*m)) + c;
         float dist = sqrt(((x1 - x0)*(x1 - x0)) + ((y1 - y0)*(y1 - y0)));
-        //printf("%0.2f ", x1);
-        //printf("%0.2f ", y1);
-        //printf("%0.2f", dist);
         output[op_idx] = dist;
+    } 
+}
 
-        // __syncthreads();
+__global__ void distance_model_parallel_large(const float *points, float *output, float *m_all, float *c_all, int num_samples){
 
-        // 3 is threshold. Pass in as param
-        /*if (dist < 3){
-            x_list.append(x0)
-            y_list.append(y0)
-            num += 1
-        }*/
+    int tx = threadIdx.x;
+    int point_idx = blockIdx.x * blockDim.x + tx;
+
+    float m = m_all[blockIdx.y];
+    float c = c_all[blockIdx.y];
+    int op_idx = blockIdx.y*num_samples + point_idx;
+
+    if (point_idx < num_samples){
+
+        float x0 = points[point_idx*2];
+        float y0 = points[point_idx*2 + 1];
+
+        // intersection point with the model
+        float x1 = (x0 + (m*y0) - (m*c))/(1 + (m*m));
+        float y1 = ((m*x0) + ((m*m)*y0) - ((m*m)*c))/(1 + (m*m)) + c;
+        float dist = sqrt(((x1 - x0)*(x1 - x0)) + ((y1 - y0)*(y1 - y0)));
+        output[op_idx] = dist;
     } 
 }

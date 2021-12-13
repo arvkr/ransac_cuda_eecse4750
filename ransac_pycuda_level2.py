@@ -162,6 +162,7 @@ gridSize_model = (1, 1, 1)
 
 cuda_find_line_model = mod.get_function('find_line_model')
 
+# find a line model for these points
 cuda_find_line_model(maybe_points1_d, maybe_points2_d, m_d, c_d, np.int32(ransac_iterations), block=blockDim_model, grid=gridSize_model)
 
 m_host = m_d.get()
@@ -171,13 +172,7 @@ c_host = c_d.get()
 for it in range(ransac_iterations):
  
     # pick up two random points
-
-    test_pts_mask = np.ones(len(data), dtype=bool)
-    test_pts_mask[maybe_indices1[it]] = False
-    test_pts_mask[maybe_indices2[it]] = False
-    test_points = data[test_pts_mask, :]
  
-    # find a line model for these points
     m = m_host[it]
     c = c_host[it]
  
@@ -185,12 +180,12 @@ for it in range(ransac_iterations):
     y_list = []
     num = 0
 
-    output = np.zeros(shape=(test_points.shape[0]), dtype=np.float32)
+    output = np.zeros(shape=(data.shape[0]), dtype=np.float32)
 
     e_start = cuda.Event()
     e_end = cuda.Event()
 
-    points_d = gpuarray.to_gpu(test_points)
+    points_d = gpuarray.to_gpu(data)
     dist_output_d = gpuarray.to_gpu(output)
     blockSize = 1024
     blockDim = (blockSize, 1, 1) 
@@ -207,6 +202,7 @@ for it in range(ransac_iterations):
     #print(distances)
     dists = [np.logical_and([distances > 0], [distances < ransac_threshold])] 
     num = np.sum(dists)
+    num -= 2
     #print(num)
     print('Num = ', num)
  

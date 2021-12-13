@@ -157,11 +157,6 @@ maybe_points2 = data[maybe_indices2, :]
 for it in range(ransac_iterations):
  
     # pick up two random points
-
-    test_pts_mask = np.ones(len(data), dtype=bool)
-    test_pts_mask[maybe_indices1[it]] = False
-    test_pts_mask[maybe_indices2[it]] = False
-    test_points = data[test_pts_mask, :]
  
     # find a line model for these points
     maybe_points = np.vstack((maybe_points1[it], maybe_points2[it]))
@@ -171,11 +166,12 @@ for it in range(ransac_iterations):
     y_list = []
     num = 0
  
-    # find orthogonal lines to the model for all testing points
-    for ind in range(test_points.shape[0]):
+    # find orthogonal lines to the model for all testing points. 
+    # Test over maybe_points also since it is easier in terms of calculation.
+    for ind in range(data.shape[0]):
  
-        x0 = test_points[ind,0]
-        y0 = test_points[ind,1]
+        x0 = data[ind,0]
+        y0 = data[ind,1]
  
         # find an intercept point of the model with a normal from point (x0,y0)
         x1, y1 = find_intercept_point(m, c, x0, y0)
@@ -188,7 +184,10 @@ for it in range(ransac_iterations):
             x_list.append(x0)
             y_list.append(y0)
             num += 1
- 
+    
+    # Removing the cnt of points that were used for modelling from the inlier set
+    num -=2
+
     x_inliers = np.array(x_list)
     y_inliers = np.array(y_list)
  
@@ -197,7 +196,7 @@ for it in range(ransac_iterations):
         ratio = num/float(n_samples)
         model_m = m
         model_c = c
- 
+    print('num inlier pts = ', num)
     print ('  inlier ratio = ', num/float(n_samples))
     print ('  model_m = ', m)
     print ('  model_c = ', c)

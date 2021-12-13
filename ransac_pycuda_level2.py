@@ -186,7 +186,7 @@ for it in range(ransac_iterations):
     e_end = cuda.Event()
 
     points_d = gpuarray.to_gpu(data)
-    dist_output_d = gpuarray.to_gpu(output)
+    dist_output_d = gpuarray.empty(shape=(data.shape[0]), dtype=np.float32)
     blockSize = 1024
     blockDim = (blockSize, 1, 1) 
     gridSize = (1, 1, 1)
@@ -199,6 +199,7 @@ for it in range(ransac_iterations):
     e_end.synchronize()
 
     distances = dist_output_d.get()
+    print('d_shape::', distances.shape)
     #print(distances)
     dists = [np.logical_and([distances > 0], [distances < ransac_threshold])] 
     num = np.sum(dists)

@@ -149,6 +149,7 @@ maybe_indices2 = np.random.choice(all_indices, size=(ransac_iterations), replace
 same_indices = (maybe_indices1 == maybe_indices2)
 maybe_indices1[same_indices] +=1
 
+# pick up two random points
 maybe_points1 = data[maybe_indices1, :]
 maybe_points2 = data[maybe_indices2, :]
 
@@ -168,43 +169,43 @@ cuda_find_line_model(maybe_points1_d, maybe_points2_d, m_d, c_d, np.int32(ransac
 m_host = m_d.get()
 c_host = c_d.get()
 
+x_list = []
+y_list = []
+
+# output = np.zeros(shape=(data.shape[0]*ransac_iterations), dtype=np.float32)
+
+e_start = cuda.Event()
+e_end = cuda.Event()
+
+points_d = gpuarray.to_gpu(data)
+# dist_output_d = gpuarray.to_gpu(output)
+dist_output_d = gpuarray.empty(shape=(data.shape[0]*ransac_iterations), dtype=np.float32)
+blockSize = 1024
+blockDim = (blockSize, 1, 1) 
+gridSize = (ransac_iterations, 1, 1)
+
+dist_model_parallel = mod.get_function('distance_model_parallel')
+
+dist_model_parallel(points_d, dist_output_d, m_d, c_d, np.int32(data.shape[0]), block=blockDim, grid=gridSize)
+
+e_end.record()
+e_end.synchronize()
+
+distances = dist_output_d.get()
+distances = distances.reshape((ransac_iterations, data.shape[0]))
+print(distances.shape)
+
 # perform RANSAC iterations
+dists = np.logical_and([distances > 0], [distances < ransac_threshold])[0]
+num_all = np.sum(dists, axis=1)
+num_all -= 2
+print('Num = ', num_all, num_all.shape)
+
 for it in range(ransac_iterations):
- 
-    # pick up two random points
- 
+
     m = m_host[it]
     c = c_host[it]
- 
-    x_list = []
-    y_list = []
-    num = 0
-
-    output = np.zeros(shape=(data.shape[0]), dtype=np.float32)
-
-    e_start = cuda.Event()
-    e_end = cuda.Event()
-
-    points_d = gpuarray.to_gpu(data)
-    dist_output_d = gpuarray.to_gpu(output)
-    blockSize = 1024
-    blockDim = (blockSize, 1, 1) 
-    gridSize = (1, 1, 1)
-
-    dist = mod.get_function('distance')
-
-    dist(points_d, dist_output_d, np.float32(m), np.float32(c), np.int32(output.shape[0]), block=blockDim, grid=gridSize)
-
-    e_end.record()
-    e_end.synchronize()
-
-    distances = dist_output_d.get()
-    #print(distances)
-    dists = [np.logical_and([distances > 0], [distances < ransac_threshold])] 
-    num = np.sum(dists)
-    num -= 2
-    #print(num)
-    print('Num = ', num)
+    num = num_all[it]
  
     #x_inliers = np.array(x_list)
     #y_inliers = np.array(y_list)

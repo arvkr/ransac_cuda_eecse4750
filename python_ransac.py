@@ -20,7 +20,7 @@ outliers_ratio = 0.4          # ratio of outliers
 n_inputs = 1
 n_outputs = 1
 
-np.random.seed(42)
+np.random.seed(21)
  
 # generate samples
 x = 30*np.random.random((n_samples, n_inputs) )
@@ -140,25 +140,31 @@ ratio = 0.
 model_m = 0.
 model_c = 0.
 
-folder_name = os.path.join(os.getcwd(), 'serial_' + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
-os.makedirs(folder_name)
+# folder_name = os.path.join(os.getcwd(), 'serial_' + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+# os.makedirs(folder_name)
  
 # perform RANSAC iterations
+
+all_indices = np.arange(x_noise.shape[0])
+maybe_indices1 = np.random.choice(all_indices, size=(ransac_iterations), replace=True)
+maybe_indices2 = np.random.choice(all_indices, size=(ransac_iterations), replace=True)
+same_indices = (maybe_indices1 == maybe_indices2)
+maybe_indices1[same_indices] +=1
+
+maybe_points1 = data[maybe_indices1, :]
+maybe_points2 = data[maybe_indices2, :]
+
 for it in range(ransac_iterations):
  
     # pick up two random points
-    n = 2
- 
-    all_indices = np.arange(x_noise.shape[0])
-    np.random.shuffle(all_indices)
- 
-    indices_1 = all_indices[:n]
-    indices_2 = all_indices[n:]
- 
-    maybe_points = data[indices_1,:]
-    test_points = data[indices_2,:]
+
+    test_pts_mask = np.ones(len(data), dtype=bool)
+    test_pts_mask[maybe_indices1[it]] = False
+    test_pts_mask[maybe_indices2[it]] = False
+    test_points = data[test_pts_mask, :]
  
     # find a line model for these points
+    maybe_points = np.vstack((maybe_points1[it], maybe_points2[it]))
     m, c = find_line_model(maybe_points)
  
     x_list = []

@@ -23,7 +23,7 @@ outliers_ratio = 0.4          # ratio of outliers
 n_inputs = 1
 n_outputs = 1
 
-np.random.seed(42)
+np.random.seed(21)
 
 # generate samples
 x = 30*np.random.random((n_samples, n_inputs) )
@@ -143,58 +143,27 @@ ratio = 0.
 model_m = 0.
 model_c = 0.
 
-kernelwrapper = """
-    __global__ void distance(const float *points, float *output, float m, float c, int N){
+all_indices = np.arange(x_noise.shape[0])
+maybe_indices1 = np.random.choice(all_indices, size=(ransac_iterations), replace=True)
+maybe_indices2 = np.random.choice(all_indices, size=(ransac_iterations), replace=True)
+same_indices = (maybe_indices1 == maybe_indices2)
+maybe_indices1[same_indices] +=1
 
-        int i = blockIdx.x * blockDim.x + threadIdx.x;
-
-        if (i < N){
-
-            // 2 is hard coded but it is 2d points
-            float x0 = points[i*2];
-            float y0 = points[i*2 + 1];
-            //printf("%0.2f ", x0);
-            //printf("%0.2f ", y0);
-
-            // intersection point with the model
-            float x1 = (x0 + (m*y0) - (m*c))/(1 + (m*m));
-            float y1 = ((m*x0) + ((m*m)*y0) - ((m*m)*c))/(1 + (m*m)) + c;
-            float dist = sqrt(((x1 - x0)*(x1 - x0)) + ((y1 - y0)*(y1 - y0)));
-            //printf("%0.2f ", x1);
-            //printf("%0.2f ", y1);
-            //printf("%0.2f", dist);
-
-            output[i] = dist;
-
-            // __syncthreads();
-
-            // 3 is threshold. Pass in as param
-            /*if (dist < 3){
-                x_list.append(x0)
-                y_list.append(y0)
-                num += 1
-            }*/
-        } 
-    }
-
-    """
+maybe_points1 = data[maybe_indices1, :]
+maybe_points2 = data[maybe_indices2, :]
 
 # perform RANSAC iterations
 for it in range(ransac_iterations):
  
     # pick up two random points
-    n = 2
- 
-    all_indices = np.arange(x_noise.shape[0])
-    np.random.shuffle(all_indices)
- 
-    indices_1 = all_indices[:n]
-    indices_2 = all_indices[n:]
- 
-    maybe_points = data[indices_1,:]
-    test_points = data[indices_2,:]
+
+    test_pts_mask = np.ones(len(data), dtype=bool)
+    test_pts_mask[maybe_indices1[it]] = False
+    test_pts_mask[maybe_indices2[it]] = False
+    test_points = data[test_pts_mask, :]
  
     # find a line model for these points
+    maybe_points = np.vstack((maybe_points1[it], maybe_points2[it]))
     m, c = find_line_model(maybe_points)
  
     x_list = []
@@ -202,10 +171,11 @@ for it in range(ransac_iterations):
     num = 0
 
     #print(test_points)
-    mod = SourceModule(kernelwrapper)
+    mod = SourceModule(open('kernel_ransac.cu').read())
 
     output = np.zeros(shape=(test_points.shape[0]), dtype=np.float32)
-    print(output.shape)
+    # print('tp shape', test_points.shape)
+    # print('op shape', output.shape)
 
     e_start = cuda.Event()
     e_end = cuda.Event()

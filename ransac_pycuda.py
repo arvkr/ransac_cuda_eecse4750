@@ -3,12 +3,17 @@ import matplotlib.pyplot as plt
 import math
 import scipy
 import sys
+import os
+import datetime
 from numpy.core.fromnumeric import size
 from pycuda import driver, compiler, gpuarray, tools
 import pycuda.driver as cuda
 from pycuda.compiler import SourceModule
 import pycuda.autoinit
 import time
+
+folder_name = os.path.join(os.getcwd(), 'serial_' + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+os.makedirs(folder_name)
 
 # Ransac parameters
 ransac_iterations = 20  # number of iterations
@@ -17,16 +22,17 @@ ransac_ratio = 0.6      # ratio of inliers required to assert
                         # that a model fits well to data
  
 # generate sparse input data
-n_samples = 4096               # number of input points ||| Max tested = 3554432
+n_samples = 200               # number of input points ||| Max tested = 3554432
 outliers_ratio = 0.4          # ratio of outliers
- 
+
+# What is the purpose of these 2 variables below:
 n_inputs = 1
 n_outputs = 1
 
 np.random.seed(42)
 
 # generate samples
-x = 30*np.random.random((n_samples, n_inputs) )
+x = 30*np.random.random((n_samples, n_inputs))
  
 # generate line's slope (called here perfect fit)
 perfect_fit = 0.5*np.random.normal(size=(n_inputs, n_outputs) )
@@ -133,7 +139,7 @@ def ransac_plot(n, x, y, m, c, final=False, x_in=(), y_in=(), points=()):
  
     plt.title(title)
     plt.legend()
-    plt.savefig(fname)
+    plt.savefig(folder_name + '/' + fname)
     plt.close()
 
 data = np.hstack( (x_noise,y_noise) ).astype(np.float32)

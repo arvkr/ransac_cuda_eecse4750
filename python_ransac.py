@@ -14,7 +14,7 @@ ransac_ratio = 0.6      # ratio of inliers required to assert
                         # that a model fits well to data
  
 # generate sparse input data
-n_samples = 4096            # number of input points||| Max tested = 3554432
+n_samples =  12000             # number of input points||| Max tested = 3554432
 outliers_ratio = 0.4          # ratio of outliers
 
 # What is the purpose of these 2 variables below:

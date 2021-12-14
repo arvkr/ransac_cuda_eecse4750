@@ -13,23 +13,23 @@ from pycuda.compiler import SourceModule
 import pycuda.autoinit
 import time
 
-folder_name = os.path.join(os.getcwd(), 'serial_' + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+folder_name = os.path.join(os.getcwd(), 'cuda_' + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
 os.makedirs(folder_name)
 
 # Ransac parameters
 ransac_iterations = 20  # number of iterations
 ransac_threshold = 3    # threshold
-ransac_ratio = 0.6      # ratio of inliers required to assert
+ransac_ratio = 0.6     # ratio of inliers required to assert
                         # that a model fits well to data
  
 # generate sparse input data
 n_samples = 200               # number of input points ||| Max tested = 3554432
-outliers_ratio = 0.4          # ratio of outliers
+outliers_ratio = 0.3          # ratio of outliers
  
 n_inputs = 1
 n_outputs = 1
 
-np.random.seed(42)
+np.random.seed(25)
 
 # generate samples
 x = 30*np.random.random((n_samples, n_inputs))
@@ -163,42 +163,6 @@ model_b = 0.
 model_c = 0.
 model_d = 0.
 
-kernelwrapper = """
-    __global__ void distance(const float *points, float *output, float a, float b, float c, float d, int N){
-
-        int i = blockIdx.x * blockDim.x + threadIdx.x;
-
-        if (i < N){
-
-            float x0 = points[i*3];
-            float y0 = points[i*3 + 1];
-            float z0 = points[i*3 + 2];
-            //printf("%0.2f ", x0);
-            //printf("%0.2f ", y0);
-
-            // intersection point with the model
-            float numer = abs(((a * x0) + (b * y0) + (c * z0) + d));
-            float denom = sqrt((a * a) + (b * b) + (c * c));
-            float dist = numer / denom;
-            //printf("%0.2f ", x1);
-            //printf("%0.2f ", y1);
-            //printf("%0.2f", dist);
-
-            output[i] = dist;
-
-            // __syncthreads();
-
-            // 3 is threshold. Pass in as param
-            /*if (dist < 3){
-                x_list.append(x0)
-                y_list.append(y0)
-                num += 1
-            }*/
-        } 
-    }
-
-    """
-
 tik = time.time()
 # perform RANSAC iterations
 for it in range(ransac_iterations):
@@ -223,7 +187,7 @@ for it in range(ransac_iterations):
     num = 0
 
     #print(test_points)
-    mod = SourceModule(kernelwrapper)
+    mod = SourceModule(open('kernel_3d_ransac.cu').read())
 
     output = np.zeros(shape=(test_points.shape[0]), dtype=np.float32)
     print(output.shape)
@@ -264,10 +228,14 @@ for it in range(ransac_iterations):
         model_d = d
  
     print ('  inlier ratio = ', num/float(n_samples))
-    print ('  model_a = ', model_a)
-    print ('  model_b = ', model_b)
-    print ('  model_c = ', model_c)
-    print ('  model_d = ', model_d)
+    # print ('  model_a = ', model_a)
+    # print ('  model_b = ', model_b)
+    # print ('  model_c = ', model_c)
+    # print ('  model_d = ', model_d)
+    print ('  model_a = ', a)
+    print ('  model_b = ', b)
+    print ('  model_c = ', c)
+    print ('  model_d = ', d)
  
     # plot the current step
     # ransac_plot(it, x_noise,y_noise, m, c, False, x_inliers, y_inliers, maybe_points)

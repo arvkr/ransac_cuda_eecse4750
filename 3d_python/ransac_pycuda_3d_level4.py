@@ -1,3 +1,4 @@
+from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 import math
@@ -11,27 +12,25 @@ import pycuda.driver as cuda
 from pycuda.compiler import SourceModule
 import pycuda.autoinit
 import time
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-folder_name = os.path.join(os.getcwd(), 'serial_' + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+folder_name = os.path.join(os.getcwd(), 'cuda_' + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
 os.makedirs(folder_name)
 
 # Ransac parameters
 ransac_iterations = 20  # number of iterations
 ransac_threshold = 3    # threshold
-ransac_ratio = 0.6      # ratio of inliers required to assert
+ransac_ratio = 0.6     # ratio of inliers required to assert
                         # that a model fits well to data
  
 # generate sparse input data
-n_samples = 200            # number of input points||| Max tested = 3554432
+n_samples = 200               # number of input points ||| Max tested = 3554432
 outliers_ratio = 0.3          # ratio of outliers
-
-# What is the purpose of these 2 variables below:
+ 
 n_inputs = 1
 n_outputs = 1
 
 np.random.seed(25)
- 
+
 # generate samples
 x = 30*np.random.random((n_samples, n_inputs)).astype(np.float64)
  
@@ -58,12 +57,6 @@ x_noise[outlier_indices] = 30*np.random.random(size=(n_outliers,n_inputs)).astyp
 # gaussian outliers
 y_noise[outlier_indices] = 30*np.random.normal(size=(n_outliers,n_outputs)).astype(np.float64)
 z_noise[outlier_indices] = 30*np.random.normal(size=(n_outliers,n_outputs)).astype(np.float64)
-
-'''fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-
-ax.scatter(xs = x_noise, ys = y_noise, zs = z_noise)
-plt.show()'''
 
 # non-gaussian outliers (only on one side)
 #y_noise[outlier_indices] = 30*(np.random.normal(size=(n_outliers,n_outputs))**2)
@@ -95,7 +88,7 @@ def find_line_model(points):
  
     return a, b, c, d
 
-def find_distance(x0, y0, z0, a, b, c, d):
+def find_intercept_point(m, c, x0, y0):
     """ find an intercept point of the line model with
         a normal from point (x0,y0) to it
     :param m slope of the line model
@@ -105,11 +98,11 @@ def find_distance(x0, y0, z0, a, b, c, d):
     :return intercept point
     """
  
-    d = abs((a * x0 + b * y0 + c * z0 + d))
-    e = (math.sqrt(a * a + b * b + c * c))
-    dist =  d/e
+    # intersection point with the model
+    x = (x0 + m*y0 - m*c)/(1 + m**2)
+    y = (m*x0 + (m**2)*y0 - (m**2)*c)/(1 + m**2) + c
  
-    return dist
+    return x, y
 
 def ransac_plot(n, x, y, z, a, b, c, d, final=False, x_in=(), y_in=(), z_in = (), points=()):
 
@@ -161,12 +154,15 @@ def ransac_plot(n, x, y, z, a, b, c, d, final=False, x_in=(), y_in=(), z_in = ()
     # plt.savefig(folder_name + '/' + fname)
     plt.close()
 
-data = np.hstack( (x_noise,y_noise, z_noise) )
+data = np.hstack( (x_noise,y_noise, z_noise))
+data = np.array(data)
  
 ratio = 0.
-model_m = 0.
+model_a = 0.
+model_b = 0.
 model_c = 0.
- 
+model_d = 0.
+
 tik = time.time()
 
 all_indices = np.arange(x_noise.shape[0])
@@ -186,42 +182,79 @@ maybe_points1 = data[maybe_indices1, :]
 maybe_points2 = data[maybe_indices2, :]
 maybe_points3 = data[maybe_indices3, :]
 
+mod = SourceModule(open('kernel_3d_ransac.cu').read())
+maybe_points1_d = gpuarray.to_gpu(maybe_points1)
+maybe_points2_d = gpuarray.to_gpu(maybe_points2)
+maybe_points3_d = gpuarray.to_gpu(maybe_points3)
+a_d = gpuarray.empty(shape=ransac_iterations, dtype=np.float64)
+b_d = gpuarray.empty(shape=ransac_iterations, dtype=np.float64)
+c_d = gpuarray.empty(shape=ransac_iterations, dtype=np.float64)
+d_d = gpuarray.empty(shape=ransac_iterations, dtype=np.float64)
+
+blockDim_model = (ransac_iterations, 1, 1) 
+gridSize_model = (1, 1, 1)
+
+cuda_find_plane_model = mod.get_function('find_plane_model')
+
+# find a line model for these points
+cuda_find_plane_model(maybe_points1_d, maybe_points2_d, maybe_points3_d, a_d, b_d, c_d, d_d, np.int32(ransac_iterations), block=blockDim_model, grid=gridSize_model)
+
+a_host = a_d.get()
+b_host = b_d.get()
+c_host = c_d.get()
+d_host = d_d.get()
+
+
+
+
+
+output = np.zeros(shape=(data.shape[0]), dtype=np.float64)
+print(output.shape)
+
+e_start = cuda.Event()
+e_end = cuda.Event()
+
+points_d = gpuarray.to_gpu(data)
+dist_output_d = gpuarray.empty(shape=(data.shape[0]*ransac_iterations), dtype=np.float64)
+
+
+blockSize = 1024
+blockDim = (blockSize, 1, 1) 
+gridSize = (((data.shape[0] - 1)//1024 + 1), ransac_iterations, 1)
+
+dist_3d_model_parallel_large = mod.get_function('distance_3d_model_parallel_large')
+dist_3d_model_parallel_large(points_d, dist_output_d, a_d, b_d, c_d, d_d, np.int32(data.shape[0]), block=blockDim, grid=gridSize)
+
+e_end.record()
+e_end.synchronize()
+
+distances = dist_output_d.get()
+distances = distances.reshape((ransac_iterations, data.shape[0]))
+print(distances.shape)
+
+#print(distances)
+# Why are we doing distances > 0
+dists = np.logical_and([distances > 0], [distances < ransac_threshold])[0]
+num_all = np.sum(dists, axis=1)
+num_all -= 3
+print('Num = ', num_all, num_all.shape)
+
 # perform RANSAC iterations
 for it in range(ransac_iterations):
  
     # find a line model for these points
-    maybe_points = np.vstack((maybe_points1[it], maybe_points2[it], maybe_points3[it]))
-    a, b, c, d = find_line_model(maybe_points)
- 
-    x_list = []
-    y_list = []
-    z_list = []
-    num = 0
- 
-    # find orthogonal lines to the model for all testing points
-    for ind in range(data.shape[0]):
- 
-        x0 = data[ind,0]
-        y0 = data[ind,1]
-        z0 = data[ind,2]
- 
- 
-        # distance from point to the model
-        dist = find_distance(x0, y0, z0, a, b, c, d)
- 
-        # check whether it's an inlier or not
-        if dist > 0 and dist < ransac_threshold:
-            x_list.append(x0)
-            y_list.append(y0)
-            z_list.append(z0)
-            num += 1
- 
-    num -= 3
-    print('Num = ', num)
-    print('Num_samples = ', n_samples)
-    x_inliers = np.array(x_list)
-    y_inliers = np.array(y_list)
-    z_inliers = np.array(z_list)
+    # maybe_points = np.vstack((maybe_points1[it], maybe_points2[it], maybe_points3[it]))
+    # a, b, c, d = find_line_model(maybe_points)
+    
+    a = a_host[it]
+    b = b_host[it]
+    c = c_host[it]
+    d = d_host[it]
+    num = num_all[it]
+
+
+    #x_inliers = np.array(x_list)
+    #y_inliers = np.array(y_list)
  
     # in case a new model is better - cache it
     if num/float(n_samples-2) > ratio:
@@ -242,7 +275,7 @@ for it in range(ransac_iterations):
     print ('  model_d = ', d)
  
     # plot the current step
-    ransac_plot(it, x_noise,y_noise, z_noise, a, b, c, d, False, x_inliers, y_inliers, z_inliers, maybe_points)
+    # ransac_plot(it, x_noise,y_noise, m, c, False, x_inliers, y_inliers, maybe_points)
  
     # we are done in case we have enough inliers
     if num > n_samples*ransac_ratio:

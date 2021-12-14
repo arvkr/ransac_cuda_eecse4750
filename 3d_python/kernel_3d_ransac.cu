@@ -63,3 +63,28 @@ __global__ void find_plane_model(const double *maybe_points1, const double *mayb
     }
 
 }
+
+__global__ void distance_3d_model_parallel_large(const double *points, double *output, double *a_all, double *b_all, double *c_all, double *d_all, int num_samples){
+
+    int tx = threadIdx.x;
+    int point_idx = blockIdx.x * blockDim.x + tx;
+
+    double a = a_all[blockIdx.y];
+    double b = b_all[blockIdx.y];
+    double c = c_all[blockIdx.y];
+    double d = d_all[blockIdx.y];
+    int op_idx = blockIdx.y*num_samples + point_idx;
+
+    if (point_idx < num_samples){
+
+        double x0 = points[point_idx*3];
+        double y0 = points[point_idx*3 + 1];
+        double z0 = points[point_idx*3 + 2];
+
+        // intersection point with the model
+        double numer = abs(((a * x0) + (b * y0) + (c * z0) + d));
+        double denom = sqrt((a * a) + (b * b) + (c * c));
+        double dist = numer / denom;
+        output[op_idx] = dist;
+    } 
+}

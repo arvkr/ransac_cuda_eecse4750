@@ -10,47 +10,47 @@ from pycuda.compiler import SourceModule
 import pycuda.autoinit
 import time
 
-# Ransac parameters
-ransac_iterations = 20  # number of iterations
-ransac_threshold = 3    # threshold
-ransac_ratio = 0.6      # ratio of inliers required to assert
-                        # that a model fits well to data
+# # Ransac parameters
+# ransac_iterations = 20  # number of iterations
+# ransac_threshold = 3    # threshold
+# ransac_ratio = 0.6      # ratio of inliers required to assert
+#                         # that a model fits well to data
  
-# generate sparse input data
-n_samples = 12000               # number of input points
-outliers_ratio = 0.4          # ratio of outliers
+# # generate sparse input data
+# n_samples = 500               # number of input points
+# outliers_ratio = 0.4          # ratio of outliers
  
-n_inputs = 1
-n_outputs = 1
+# n_inputs = 1
+# n_outputs = 1
 
-np.random.seed(21)
+# np.random.seed(21)
 
-# generate samples
-x = 30*np.random.random((n_samples, n_inputs) )
+# # generate samples
+# x = 30*np.random.random((n_samples, n_inputs) )
  
-# generate line's slope (called here perfect fit)
-perfect_fit = 0.5*np.random.normal(size=(n_inputs, n_outputs) )
+# # generate line's slope (called here perfect fit)
+# perfect_fit = 0.5*np.random.normal(size=(n_inputs, n_outputs) )
  
-# compute output
-y = scipy.dot(x,perfect_fit)
+# # compute output
+# y = scipy.dot(x,perfect_fit)
 
-# add a little gaussian noise
-x_noise = x + np.random.normal(size=x.shape)
-y_noise = y + np.random.normal(size=y.shape)
+# # add a little gaussian noise
+# x_noise = x + np.random.normal(size=x.shape)
+# y_noise = y + np.random.normal(size=y.shape)
  
-# add some outliers to the point-set
-n_outliers = int(outliers_ratio*n_samples)
-indices = np.arange(x_noise.shape[0])
-np.random.shuffle(indices)
-outlier_indices = indices[:n_outliers]
+# # add some outliers to the point-set
+# n_outliers = int(outliers_ratio*n_samples)
+# indices = np.arange(x_noise.shape[0])
+# np.random.shuffle(indices)
+# outlier_indices = indices[:n_outliers]
  
-x_noise[outlier_indices] = 30*np.random.random(size=(n_outliers,n_inputs))
+# x_noise[outlier_indices] = 30*np.random.random(size=(n_outliers,n_inputs))
  
-# gaussian outliers
-y_noise[outlier_indices] = 30*np.random.normal(size=(n_outliers,n_outputs))
+# # gaussian outliers
+# y_noise[outlier_indices] = 30*np.random.normal(size=(n_outliers,n_outputs))
  
-# non-gaussian outliers (only on one side)
-#y_noise[outlier_indices] = 30*(np.random.normal(size=(n_outliers,n_outputs))**2)
+# # non-gaussian outliers (only on one side)
+# #y_noise[outlier_indices] = 30*(np.random.normal(size=(n_outliers,n_outputs))**2)
 
 def find_line_model(points):
     """ find a line model for the given points
@@ -136,103 +136,166 @@ def ransac_plot(n, x, y, m, c, final=False, x_in=(), y_in=(), points=()):
     plt.savefig(fname)
     plt.close()
 
-data = np.hstack( (x_noise,y_noise) ).astype(np.float32)
-data = np.array(data)
- 
-ratio = 0.
-model_m = 0.
-model_c = 0.
+def do_ransac(x_noise, y_noise, ransac_iterations, ransac_threshold, n_samples, maybe_indices1, maybe_indices2):
 
-all_indices = np.arange(x_noise.shape[0])
-maybe_indices1 = np.random.choice(all_indices, size=(ransac_iterations), replace=True)
-maybe_indices2 = np.random.choice(all_indices, size=(ransac_iterations), replace=True)
-same_indices = (maybe_indices1 == maybe_indices2)
-maybe_indices1[same_indices] +=1
+    data = np.hstack( (x_noise,y_noise) ).astype(np.float32)
+    data = np.array(data)
+    
+    ratio = 0.
+    model_m = 0.
+    model_c = 0.
 
-# pick up two random points
-maybe_points1 = data[maybe_indices1, :]
-maybe_points2 = data[maybe_indices2, :]
+    tik = time.time()
 
-mod = SourceModule(open('kernel_ransac.cu').read())
-maybe_points1_d = gpuarray.to_gpu(maybe_points1)
-maybe_points2_d = gpuarray.to_gpu(maybe_points2)
-m_d = gpuarray.empty(shape=ransac_iterations, dtype=np.float32)
-c_d = gpuarray.empty(shape=ransac_iterations, dtype=np.float32)
-blockDim_model = (ransac_iterations, 1, 1) 
-gridSize_model = (1, 1, 1)
+    # all_indices = np.arange(x_noise.shape[0])
+    # maybe_indices1 = np.random.choice(all_indices, size=(ransac_iterations), replace=True)
+    # maybe_indices2 = np.random.choice(all_indices, size=(ransac_iterations), replace=True)
+    same_indices = (maybe_indices1 == maybe_indices2)
+    maybe_indices1[same_indices] +=1
 
-cuda_find_line_model = mod.get_function('find_line_model')
+    # pick up two random points
+    maybe_points1 = data[maybe_indices1, :]
+    maybe_points2 = data[maybe_indices2, :]
 
-# find a line model for these points
-cuda_find_line_model(maybe_points1_d, maybe_points2_d, m_d, c_d, np.int32(ransac_iterations), block=blockDim_model, grid=gridSize_model)
+    mod = SourceModule(open('kernel_ransac.cu').read())
+    maybe_points1_d = gpuarray.to_gpu(maybe_points1)
+    maybe_points2_d = gpuarray.to_gpu(maybe_points2)
+    m_d = gpuarray.empty(shape=ransac_iterations, dtype=np.float32)
+    c_d = gpuarray.empty(shape=ransac_iterations, dtype=np.float32)
+    blockDim_model = (ransac_iterations, 1, 1) 
+    gridSize_model = (1, 1, 1)
 
-m_host = m_d.get()
-c_host = c_d.get()
+    cuda_find_line_model = mod.get_function('find_line_model')
 
-x_list = []
-y_list = []
+    # find a line model for these points
+    cuda_find_line_model(maybe_points1_d, maybe_points2_d, m_d, c_d, np.int32(ransac_iterations), block=blockDim_model, grid=gridSize_model)
 
-# output = np.zeros(shape=(data.shape[0]*ransac_iterations), dtype=np.float32)
+    m_host = m_d.get()
+    c_host = c_d.get()
 
-e_start = cuda.Event()
-e_end = cuda.Event()
+    x_list = []
+    y_list = []
 
-points_d = gpuarray.to_gpu(data)
-# dist_output_d = gpuarray.to_gpu(output)
-dist_output_d = gpuarray.empty(shape=(data.shape[0]*ransac_iterations), dtype=np.float32)
-blockSize = 1024
-blockDim = (blockSize, 1, 1)
+    # output = np.zeros(shape=(data.shape[0]*ransac_iterations), dtype=np.float32)
 
-gridSize = (((data.shape[0] - 1)//1024 + 1), ransac_iterations, 1)
+    e_start = cuda.Event()
+    e_end = cuda.Event()
 
-dist_model_parallel_large = mod.get_function('distance_model_parallel_large')
+    points_d = gpuarray.to_gpu(data)
+    # dist_output_d = gpuarray.to_gpu(output)
+    dist_output_d = gpuarray.empty(shape=(data.shape[0]*ransac_iterations), dtype=np.float32)
+    blockSize = 1024
+    blockDim = (blockSize, 1, 1)
 
-dist_model_parallel_large(points_d, dist_output_d, m_d, c_d, np.int32(data.shape[0]), block=blockDim, grid=gridSize)
+    gridSize = (((data.shape[0] - 1)//1024 + 1), ransac_iterations, 1)
 
-e_end.record()
-e_end.synchronize()
+    dist_model_parallel_large = mod.get_function('distance_model_parallel_large')
 
-distances = dist_output_d.get()
-distances = distances.reshape((ransac_iterations, data.shape[0]))
-print(distances.shape)
+    dist_model_parallel_large(points_d, dist_output_d, m_d, c_d, np.int32(data.shape[0]), block=blockDim, grid=gridSize)
 
-# perform RANSAC iterations
-dists = np.logical_and([distances > 0], [distances < ransac_threshold])[0]
-num_all = np.sum(dists, axis=1)
-num_all -= 2
-print('Num = ', num_all, num_all.shape)
+    e_end.record()
+    e_end.synchronize()
 
-for it in range(ransac_iterations):
+    distances = dist_output_d.get()
+    distances = distances.reshape((ransac_iterations, data.shape[0]))
 
-    m = m_host[it]
-    c = c_host[it]
-    num = num_all[it]
- 
-    #x_inliers = np.array(x_list)
-    #y_inliers = np.array(y_list)
- 
-    # in case a new model is better - cache it
-    if num/float(n_samples-2) > ratio:
-        ratio = num/float(n_samples)
-        model_m = m
-        model_c = c
- 
-    print ('  inlier ratio = ', num/float(n_samples))
-    print ('  model_m = ', m)
-    print ('  model_c = ', c)
- 
-    # plot the current step
-    # ransac_plot(it, x_noise,y_noise, m, c, False, x_inliers, y_inliers, maybe_points)
- 
-    # we are done in case we have enough inliers
-    if num > n_samples*ransac_ratio:
-        print ('The model is found !')
-        break
+    # perform RANSAC iterations
+    dists = np.logical_and([distances > 0], [distances < ransac_threshold])[0]
+    # print(dists)
+    num_all = np.sum(dists, axis=1)
+    num_all -= 2
 
-# plot the final model
-ransac_plot(0, x_noise,y_noise, model_m, model_c, True)
- 
-print ('\nFinal model:\n')
-print ('  ratio = ', ratio)
-print ('  model_m = ', model_m)
-print ('  model_c = ', model_c)
+    for it in range(ransac_iterations):
+
+        m = m_host[it]
+        c = c_host[it]
+        num = num_all[it]
+    
+        #x_inliers = np.array(x_list)
+        #y_inliers = np.array(y_list)
+    
+        # in case a new model is better - cache it
+        if num/float(n_samples-2) > ratio:
+            ratio = num/float(n_samples)
+            model_m = m
+            model_c = c
+    
+        # print ('  inlier ratio = ', num/float(n_samples))
+        # print ('  model_m = ', m)
+        # print ('  model_c = ', c)
+    
+        # plot the current step
+        # ransac_plot(it, x_noise,y_noise, m, c, False, x_inliers, y_inliers, maybe_points)
+    
+        # we are done in case we have enough inliers
+        # if num > n_samples*ransac_ratio:
+        #     print ('The model is found !')
+        #     break
+
+    tok = time.time()
+    # print('Time Taken = ', tok - tik)
+
+    # plot the final model
+    ransac_plot(0, x_noise,y_noise, model_m, model_c, True)
+    
+    # print ('\nFinal model:\n')
+    # print ('  ratio = ', ratio)
+    # print ('  model_m = ', model_m)
+    # print ('  model_c = ', model_c)
+
+    return tok - tik
+
+if __name__ == "__main__":
+
+    # Ransac parameters
+    ransac_iterations = 20  # number of iterations
+    ransac_threshold = 3    # threshold
+    ransac_ratio = 0.6      # ratio of inliers required to assert
+                            # that a model fits well to data
+    
+    # generate sparse input data
+    # n_samples =  500
+    # n_samples_all =  [128, 512, 1024, 4096, 16384, 1048576]             # number of input points||| Max tested = 3554432
+    n_samples_all =  [512]             # number of input points||| Max tested = 3554432
+    
+    for i, n_samples in enumerate(n_samples_all):
+        print(f'\n\nIteration {i}; n_samples {n_samples}')
+        outliers_ratio = 0.4          # ratio of outliers
+
+        # What is the purpose of these 2 variables below:
+        n_inputs = 1
+        n_outputs = 1
+
+        np.random.seed(21)
+        
+        # generate samples
+        x = 30*np.random.random((n_samples, n_inputs) )
+        
+        # generate line's slope (called here perfect fit)
+        perfect_fit = 0.5*np.random.normal(size=(n_inputs, n_outputs) )
+        
+        # compute output
+        y = scipy.dot(x,perfect_fit)
+
+        # add a little gaussian noise
+        x_noise = x + np.random.normal(size=x.shape)
+        y_noise = y + np.random.normal(size=y.shape)
+        
+        # add some outliers to the point-set
+        n_outliers = int(outliers_ratio*n_samples)
+        indices = np.arange(x_noise.shape[0])
+        np.random.shuffle(indices)
+        outlier_indices = indices[:n_outliers]
+        
+        x_noise[outlier_indices] = 30*np.random.random(size=(n_outliers,n_inputs))
+        
+        # gaussian outliers
+        y_noise[outlier_indices] = 30*np.random.normal(size=(n_outliers,n_outputs))
+        
+        all_indices = np.arange(x_noise.shape[0])
+        maybe_indices1 = np.random.choice(all_indices, size=(ransac_iterations), replace=True)
+        maybe_indices2 = np.random.choice(all_indices, size=(ransac_iterations), replace=True)
+
+        do_ransac(x_noise, y_noise, ransac_iterations, ransac_threshold, n_samples, maybe_indices1, maybe_indices2)
+        # non-gaussian outliers (only on one side)
+        #y_noise[outlier_indices] = 30*(np.random.normal(size=(n_outliers,n_outputs))**2)

@@ -178,15 +178,16 @@ e_start = cuda.Event()
 e_end = cuda.Event()
 
 points_d = gpuarray.to_gpu(data)
-# dist_output_d = gpuarray.to_gpu(output)
-dist_output_d = gpuarray.empty(shape=(data.shape[0]*ransac_iterations), dtype=np.float32)
+dist_output_d = gpuarray.empty(shape=(data.shape[0]*ransac_iterations), 
+                                    dtype=np.float32)
 blockSize = 1024
 blockDim = (blockSize, 1, 1) 
 gridSize = (ransac_iterations, 1, 1)
 
 dist_model_parallel = mod.get_function('distance_model_parallel')
 
-dist_model_parallel(points_d, dist_output_d, m_d, c_d, np.int32(data.shape[0]), block=blockDim, grid=gridSize)
+dist_model_parallel(points_d, dist_output_d, m_d, c_d, 
+                    np.int32(data.shape[0]), block=blockDim, grid=gridSize)
 
 e_end.record()
 e_end.synchronize()

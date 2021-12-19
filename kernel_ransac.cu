@@ -7,26 +7,11 @@ __global__ void distance(const float *points, float *output, float m, float c, i
         // 2 is hard coded but it is 2d points
         float x0 = points[i*2];
         float y0 = points[i*2 + 1];
-        // printf("%0.2f ", x0);
-        // printf("%0.2f ", y0);
-
         // intersection point with the model
         float x1 = (x0 + (m*y0) - (m*c))/(1 + (m*m));
         float y1 = ((m*x0) + ((m*m)*y0) - ((m*m)*c))/(1 + (m*m)) + c;
         float dist = sqrt(((x1 - x0)*(x1 - x0)) + ((y1 - y0)*(y1 - y0)));
-        //printf("%0.2f ", x1);
-        //printf("%0.2f ", y1);
-        //printf("%0.2f", dist);
         output[i] = dist;
-
-        // __syncthreads();
-
-        // 3 is threshold. Pass in as param
-        /*if (dist < 3){
-            x_list.append(x0)
-            y_list.append(y0)
-            num += 1
-        }*/
     } 
 }
 

@@ -7,31 +7,19 @@ __global__ void distance(const double *points, double *output, double a, double 
         double x0 = points[i*3];
         double y0 = points[i*3 + 1];
         double z0 = points[i*3 + 2];
-        //printf("%0.2f ", x0);
-        //printf("%0.2f ", y0);
 
         // intersection point with the model
         double numer = abs(((a * x0) + (b * y0) + (c * z0) + d));
         double denom = sqrt((a * a) + (b * b) + (c * c));
         double dist = numer / denom;
-        //printf("%0.2f ", x1);
-        //printf("%0.2f ", y1);
-        //printf("%0.2f", dist);
 
         output[i] = dist;
-
-        // __syncthreads();
-
-        // 3 is threshold. Pass in as param
-        /*if (dist < 3){
-            x_list.append(x0)
-            y_list.append(y0)
-            num += 1
-        }*/
     } 
 }
 
-__global__ void find_plane_model(const double *maybe_points1, const double *maybe_points2, const double *maybe_points3, double *a, double *b, double *c, double *d, int num_models){
+__global__ void find_plane_model(const double *maybe_points1, const double *maybe_points2, 
+                                const double *maybe_points3, double *a, double *b,
+                                double *c, double *d, int num_models){
 
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 

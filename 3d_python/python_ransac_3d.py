@@ -2,25 +2,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math
 import scipy
-import sys
 import os
 import datetime
 from numpy.core.fromnumeric import size
-from pycuda import driver, compiler, gpuarray, tools
-import pycuda.driver as cuda
-from pycuda.compiler import SourceModule
-import pycuda.autoinit
 import time
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-def find_line_model(points):
-    """ find a line model for the given points
+def find_plane_model(points):
+
+    """ find a plane model for the given points
     :param points selected points for model fitting
     :return line model
     """
- 
-    # [WARNING] vertical and horizontal lines should be treated differently
-    #           here we just add some noise to avoid division by zero
  
     a1 = points[1][0] - points[0][0]
     b1 = points[1][1] - points[0][1]
@@ -32,22 +25,11 @@ def find_line_model(points):
     b = a2 * c1 - a1 * c2
     c = a1 * b2 - b1 * a2
     d = (- a * points[0][0] - b * points[0][1] - c * points[0][2])
-    # print ("equation of plane is ",)
-    # print (a, "x +",)
-    # print (b, "y +",)
-    # print (c, "z +",)
-    # print (d, "= 0.")
  
     return a, b, c, d
 
 def find_distance(x0, y0, z0, a, b, c, d):
-    """ find an intercept point of the line model with
-        a normal from point (x0,y0) to it
-    :param m slope of the line model
-    :param c y-intercept of the line model
-    :param x0 point's x coordinate
-    :param y0 point's y coordinate
-    :return intercept point
+    """ find the distance from point (x0,y0,z0) to the modelled plane
     """
  
     d = abs((a * x0 + b * y0 + c * z0 + d))
@@ -110,13 +92,13 @@ def do_ransac_3d(x_noise,y_noise, z_noise, ransac_iterations, ransac_threshold, 
 
     data = np.hstack( (x_noise,y_noise, z_noise) )
     
+    # Variable to check if current model has more inliers than the best model so far
     ratio = 0.
-    model_m = 0.
-    model_c = 0.
     
     tik = time.time()
     start = time.time()
 
+    # Make sure the randomly picked points for modelling are not the same
     same_indices = (maybe_indices1 == maybe_indices2)
     maybe_indices1[same_indices] +=1
     same_indices = (maybe_indices1 == maybe_indices3)
@@ -125,7 +107,7 @@ def do_ransac_3d(x_noise,y_noise, z_noise, ransac_iterations, ransac_threshold, 
     maybe_indices2[same_indices] +=1
 
 
-    # pick up two random points
+    # pick up three random points
     maybe_points1 = data[maybe_indices1, :]
     maybe_points2 = data[maybe_indices2, :]
     maybe_points3 = data[maybe_indices3, :]
@@ -133,9 +115,9 @@ def do_ransac_3d(x_noise,y_noise, z_noise, ransac_iterations, ransac_threshold, 
     # perform RANSAC iterations
     for it in range(ransac_iterations):
     
-        # find a line model for these points
+        # find a plane model for these points
         maybe_points = np.vstack((maybe_points1[it], maybe_points2[it], maybe_points3[it]))
-        a, b, c, d = find_line_model(maybe_points)
+        a, b, c, d = find_plane_model(maybe_points)
         end = time.time()
         time1 = start - end
         x_list = []
@@ -151,7 +133,7 @@ def do_ransac_3d(x_noise,y_noise, z_noise, ransac_iterations, ransac_threshold, 
             z0 = data[ind,2]
     
     
-            # distance from point to the model
+            # distance from point to the plane model
             dist = find_distance(x0, y0, z0, a, b, c, d)
     
             # check whether it's an inlier or not
@@ -162,8 +144,6 @@ def do_ransac_3d(x_noise,y_noise, z_noise, ransac_iterations, ransac_threshold, 
                 num += 1
     
         num -= 3
-        # print('Num = ', num)
-        # print('Num_samples = ', n_samples)
         x_inliers = np.array(x_list)
         y_inliers = np.array(y_list)
         z_inliers = np.array(z_list)
@@ -184,11 +164,6 @@ def do_ransac_3d(x_noise,y_noise, z_noise, ransac_iterations, ransac_threshold, 
     
         # plot the current step
         # ransac_plot(it, x_noise,y_noise, z_noise, a, b, c, d, False, x_inliers, y_inliers, z_inliers, maybe_points)
-    
-        # we are done in case we have enough inliers
-        # if num > n_samples*ransac_ratio:
-        #     print ('The model is found !')
-        #     break
 
     tok = time.time()
     # print('Time Taken = ', tok - tik)
@@ -217,7 +192,7 @@ if __name__ == "__main__":
                             # that a model fits well to data
     
     # generate sparse input data
-    n_samples = 512               # number of input points ||| Max tested = 3554432
+    n_samples = 4096            # number of input points ||| Max tested = 3554432
     outliers_ratio = 0.3          # ratio of outliers
     
     n_inputs = 1
@@ -252,12 +227,11 @@ if __name__ == "__main__":
     y_noise[outlier_indices] = 30*np.random.normal(size=(n_outliers,n_outputs)).astype(np.float64)
     z_noise[outlier_indices] = 30*np.random.normal(size=(n_outliers,n_outputs)).astype(np.float64)
 
-    # non-gaussian outliers (only on one side)
-    #y_noise[outlier_indices] = 30*(np.random.normal(size=(n_outliers,n_outputs))**2)
-
+    # Choose random 3 points per ransac_iteration to find the plane model
     all_indices = np.arange(x_noise.shape[0])
     maybe_indices1 = np.random.choice(all_indices, size=(ransac_iterations), replace=True)
     maybe_indices2 = np.random.choice(all_indices, size=(ransac_iterations), replace=True)
     maybe_indices3 = np.random.choice(all_indices, size=(ransac_iterations), replace=True)
 
+    # Perform naive serial RANSAC
     do_ransac_3d(x_noise,y_noise, z_noise, ransac_iterations, ransac_threshold, ransac_ratio, n_samples, maybe_indices1, maybe_indices2, maybe_indices3)

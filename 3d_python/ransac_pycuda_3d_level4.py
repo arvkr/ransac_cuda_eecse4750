@@ -1,11 +1,8 @@
+#!/usr/bin/env python
 from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
-import math
 import scipy
-import sys
-import os
-import datetime
 from numpy.core.fromnumeric import size
 from pycuda import driver, compiler, gpuarray, tools
 import pycuda.driver as cuda
@@ -13,41 +10,8 @@ from pycuda.compiler import SourceModule
 import pycuda.autoinit
 import time
 
-def find_line_model(points):
-    """ find a line model for the given points
-    :param points selected points for model fitting
-    :return line model
-    """
- 
-    # [WARNING] vertical and horizontal lines should be treated differently
-    #           here we just add some noise to avoid division by zero
- 
-    a1 = points[1][0] - points[0][0]
-    b1 = points[1][1] - points[0][1]
-    c1 = points[1][2] - points[0][2]
-    a2 = points[2][0] - points[0][0]
-    b2 = points[2][1] - points[0][1]
-    c2 = points[2][2] - points[0][2]
-    a = b1 * c2 - b2 * c1
-    b = a2 * c1 - a1 * c2
-    c = a1 * b2 - b1 * a2
-    d = (- a * points[0][0] - b * points[0][1] - c * points[0][2])
-    # print ("equation of plane is ",)
-    # print (a, "x +",)
-    # print (b, "y +",)
-    # print (c, "z +",)
-    # print (d, "= 0.")
- 
-    return a, b, c, d
-
 def find_intercept_point(m, c, x0, y0):
-    """ find an intercept point of the line model with
-        a normal from point (x0,y0) to it
-    :param m slope of the line model
-    :param c y-intercept of the line model
-    :param x0 point's x coordinate
-    :param y0 point's y coordinate
-    :return intercept point
+    """ find the distance from point (x0,y0,z0) to the modelled plane
     """
  
     # intersection point with the model
@@ -106,19 +70,29 @@ def ransac_plot(n, x, y, z, a, b, c, d, final=False, x_in=(), y_in=(), z_in = ()
     # plt.savefig(folder_name + '/' + fname)
     plt.close()
 
-def do_ransac_3d(x_noise,y_noise, z_noise, ransac_iterations, ransac_threshold, ransac_ratio, n_samples, maybe_indices1, maybe_indices2, maybe_indices3):
+def do_ransac_3d(x_noise,y_noise, z_noise, ransac_iterations, ransac_threshold, ransac_ratio, n_samples, maybe_indices1, maybe_indices2, maybe_indices3, blockSize=1024):
 
     data = np.hstack( (x_noise,y_noise, z_noise))
     data = np.array(data)
     
+    # Variable to check if current model has more inliers than the best model so far
     ratio = 0.
-    model_a = 0.
-    model_b = 0.
-    model_c = 0.
-    model_d = 0.
 
-    tik = time.time()
+    # Execution time benchmarking
+    tik = cuda.Event()
+    tok = cuda.Event()
+    st_mem1 = cuda.Event()
+    st_mem2 = cuda.Event()
+    st_mem3 = cuda.Event()
+    st_mem4 = cuda.Event()
+    en_mem1 = cuda.Event()
+    en_mem2 = cuda.Event()
+    en_mem3 = cuda.Event()
+    en_mem4 = cuda.Event()
+
+    tik.record()
     start = time.time()
+    # Make sure the randomly picked points for modelling are not the same
     same_indices = (maybe_indices1 == maybe_indices2)
     maybe_indices1[same_indices] +=1
     same_indices = (maybe_indices1 == maybe_indices3)
@@ -127,12 +101,15 @@ def do_ransac_3d(x_noise,y_noise, z_noise, ransac_iterations, ransac_threshold, 
     maybe_indices2[same_indices] +=1
 
 
-    # pick up two random points
+    # pick up three random points
     maybe_points1 = data[maybe_indices1, :]
     maybe_points2 = data[maybe_indices2, :]
     maybe_points3 = data[maybe_indices3, :]
 
     mod = SourceModule(open('kernel_3d_ransac.cu').read())
+    st_mem1.record()
+    
+    # Allocate GPU memory to store model parameters
     maybe_points1_d = gpuarray.to_gpu(maybe_points1)
     maybe_points2_d = gpuarray.to_gpu(maybe_points2)
     maybe_points3_d = gpuarray.to_gpu(maybe_points3)
@@ -140,19 +117,27 @@ def do_ransac_3d(x_noise,y_noise, z_noise, ransac_iterations, ransac_threshold, 
     b_d = gpuarray.empty(shape=ransac_iterations, dtype=np.float64)
     c_d = gpuarray.empty(shape=ransac_iterations, dtype=np.float64)
     d_d = gpuarray.empty(shape=ransac_iterations, dtype=np.float64)
+    en_mem1.record()
+    en_mem1.synchronize()
 
+    # One thread calculates model parameters for one model (ransac_iterations define the number of models)
     blockDim_model = (ransac_iterations, 1, 1) 
     gridSize_model = (1, 1, 1)
 
     cuda_find_plane_model = mod.get_function('find_plane_model')
 
-    # find a line model for these points
+    # Call kernel to find plane model in parallel for all models
     cuda_find_plane_model(maybe_points1_d, maybe_points2_d, maybe_points3_d, a_d, b_d, c_d, d_d, np.int32(ransac_iterations), block=blockDim_model, grid=gridSize_model)
 
+    st_mem2.record()
+    # Retreive the calculated model parameters from GPU
     a_host = a_d.get()
     b_host = b_d.get()
     c_host = c_d.get()
     d_host = d_d.get()
+    en_mem2.record()
+    en_mem2.synchronize()
+
     end = time.time()
     time1 = end - start
     start = time.time()
@@ -161,49 +146,50 @@ def do_ransac_3d(x_noise,y_noise, z_noise, ransac_iterations, ransac_threshold, 
     e_start = cuda.Event()
     e_end = cuda.Event()
 
+    # Allocate memory to calculate error distances
+    st_mem3.record()
     points_d = gpuarray.to_gpu(data)
     dist_output_d = gpuarray.empty(shape=(data.shape[0]*ransac_iterations), dtype=np.float64)
+    en_mem3.record()
+    en_mem3.synchronize()
 
-
-    blockSize = 1024
+    # Each thread calculates error for one data sample in one model
     blockDim = (blockSize, 1, 1) 
-    gridSize = (((data.shape[0] - 1)//1024 + 1), ransac_iterations, 1)
+    # Grid_x determined number of blocks for one model
+    # Grid_y determines the number of models
+    gridSize = (((data.shape[0] - 1)//blockSize + 1), ransac_iterations, 1)
 
     dist_3d_model_parallel_large = mod.get_function('distance_3d_model_parallel_large')
+    # Call kernel tp find error distances for all models and all points
     dist_3d_model_parallel_large(points_d, dist_output_d, a_d, b_d, c_d, d_d, np.int32(data.shape[0]), block=blockDim, grid=gridSize)
 
     e_end.record()
     e_end.synchronize()
 
+    st_mem4.record()
     distances = dist_output_d.get()
+    en_mem4.record()
+    en_mem4.synchronize()
+
     end = time.time()
     time2 = end - start
     start = time.time()
     distances = distances.reshape((ransac_iterations, data.shape[0]))
 
-    #print(distances)
-    # Why are we doing distances > 0
+    # Calucalate the number of inlier points for each model (NumPy code - can be parallelized in the future using scan kernel)
     dists = np.logical_and([distances > 0], [distances < ransac_threshold])[0]
     num_all = np.sum(dists, axis=1)
+    # Remove the 3 points used for modeling
     num_all -= 3
-    # print('Num = ', num_all, num_all.shape)
 
-    # perform RANSAC iterations
+    # Find the best model by checking the number of inlier points for all models - Can be parallelized in the future
     for it in range(ransac_iterations):
-    
-        # find a line model for these points
-        # maybe_points = np.vstack((maybe_points1[it], maybe_points2[it], maybe_points3[it]))
-        # a, b, c, d = find_line_model(maybe_points)
         
         a = a_host[it]
         b = b_host[it]
         c = c_host[it]
         d = d_host[it]
         num = num_all[it]
-
-
-        #x_inliers = np.array(x_list)
-        #y_inliers = np.array(y_list)
     
         # in case a new model is better - cache it
         if num/float(n_samples-2) > ratio:
@@ -222,15 +208,13 @@ def do_ransac_3d(x_noise,y_noise, z_noise, ransac_iterations, ransac_threshold, 
         # plot the current step
         # ransac_plot(it, x_noise,y_noise, m, c, False, x_inliers, y_inliers, maybe_points)
     
-        # we are done in case we have enough inliers
-        # if num > n_samples*ransac_ratio:
-        #     print ('The model is found !')
-        #     break
     end = time.time()
     time3 = end - start
-    # print(f'{time1} \n {time2} \n {time3}')
-    tok = time.time()
-    print('Time Taken = ', tok - tik)
+    tok.record()
+    tok.synchronize()
+    mem_transfer_time = (st_mem1.time_till(en_mem1) + st_mem2.time_till(en_mem2) + st_mem3.time_till(en_mem3) + st_mem4.time_till(en_mem4)) / 1000
+    # print('Time Taken = ', tok - tik)
+    # print('Mem Transfer Time = ', mem_transfer_time)
 
     # plot the final model
     # ransac_plot(0, x_noise,y_noise, z_noise, a, b, c, d, True) 
@@ -241,22 +225,21 @@ def do_ransac_3d(x_noise,y_noise, z_noise, ransac_iterations, ransac_threshold, 
     # print ('  model_b = ', model_b)
     # print ('  model_c = ', model_c)
     # print ('  model_d = ', model_d)
-
-    return tok - tik
+    return tik.time_till(tok)/1000, mem_transfer_time
 
 if __name__ == "__main__":
 
-    folder_name = os.path.join(os.getcwd(), 'cuda_' + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
-    os.makedirs(folder_name)
+    # folder_name = os.path.join(os.getcwd(), 'cuda_' + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+    # os.makedirs(folder_name)
 
     # Ransac parameters
-    ransac_iterations = 100  # number of iterations
+    ransac_iterations = 20  # number of iterations
     ransac_threshold = 3    # threshold
     ransac_ratio = 0.6     # ratio of inliers required to assert
                             # that a model fits well to data
     
     # generate sparse input data
-    n_samples = 2097152             # number of input points ||| Max tested = 3554432
+    n_samples = 4096             # number of input points ||| Max tested = 3554432
     outliers_ratio = 0.3          # ratio of outliers
     
     n_inputs = 1
@@ -291,16 +274,13 @@ if __name__ == "__main__":
     y_noise[outlier_indices] = 30*np.random.normal(size=(n_outliers,n_outputs)).astype(np.float64)
     z_noise[outlier_indices] = 30*np.random.normal(size=(n_outliers,n_outputs)).astype(np.float64)
 
-    # non-gaussian outliers (only on one side)
-    #y_noise[outlier_indices] = 30*(np.random.normal(size=(n_outliers,n_outputs))**2)
-
+    # Choose random 3 points per ransac_iteration to find the plane model
     all_indices = np.arange(x_noise.shape[0])
     maybe_indices1 = np.random.choice(all_indices, size=(ransac_iterations), replace=True)
     maybe_indices2 = np.random.choice(all_indices, size=(ransac_iterations), replace=True)
     maybe_indices3 = np.random.choice(all_indices, size=(ransac_iterations), replace=True)
 
-    do_ransac_3d(x_noise,y_noise, z_noise, ransac_iterations, ransac_threshold, ransac_ratio, n_samples, maybe_indices1, maybe_indices2, maybe_indices3)
-    do_ransac_3d(x_noise,y_noise, z_noise, ransac_iterations, ransac_threshold, ransac_ratio, n_samples, maybe_indices1, maybe_indices2, maybe_indices3)
+    # Perform best-level4 parallelized RANSAC
     do_ransac_3d(x_noise,y_noise, z_noise, ransac_iterations, ransac_threshold, ransac_ratio, n_samples, maybe_indices1, maybe_indices2, maybe_indices3)
 
 

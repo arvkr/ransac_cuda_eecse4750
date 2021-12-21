@@ -160,7 +160,7 @@ def do_ransac_3d(x_noise,y_noise, z_noise, ransac_iterations, ransac_threshold, 
     gridSize = (((data.shape[0] - 1)//blockSize + 1), ransac_iterations, 1)
 
     dist_3d_model_parallel_large = mod.get_function('distance_3d_model_parallel_large')
-    # Call kernel tp find error distances for all models and all points
+    # Call kernel to find error distances for all models and all points
     dist_3d_model_parallel_large(points_d, dist_output_d, a_d, b_d, c_d, d_d, np.int32(data.shape[0]), block=blockDim, grid=gridSize)
 
     e_end.record()

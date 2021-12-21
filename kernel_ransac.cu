@@ -1,4 +1,6 @@
 #include "float.h"
+
+// Used in level1 - Calculates the error distance of a point for one plane model. Each thread is responsible for one point
 __global__ void distance(const float *points, float *output, float m, float c, int N){
 
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -15,6 +17,7 @@ __global__ void distance(const float *points, float *output, float m, float c, i
     } 
 }
 
+// Given 2 points, find the equation of line passing through it. Each thread is responsible for one line equation
 __global__ void find_line_model(const float *maybe_points1, const float *maybe_points2, float *m, float *c, int num_models){
 
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -34,6 +37,7 @@ __global__ void find_line_model(const float *maybe_points1, const float *maybe_p
 
 }
 
+// Here, error is calculated for all points in all models in parallel. But, the number of points per model cannot exceed 1024.
 __global__ void distance_model_parallel(const float *points, float *output, float *m_all, float *c_all, int num_samples){
 
     int tx = threadIdx.x;
@@ -54,13 +58,17 @@ __global__ void distance_model_parallel(const float *points, float *output, floa
     } 
 }
 
+// Here, error is calculated for all points in all models in parallel with no limitation on the number of points
 __global__ void distance_model_parallel_large(const float *points, float *output, float *m_all, float *c_all, int num_samples){
 
     int tx = threadIdx.x;
     int point_idx = blockIdx.x * blockDim.x + tx;
 
+    // There are a total of blockDim.y models
     float m = m_all[blockIdx.y];
     float c = c_all[blockIdx.y];
+
+    // The output index for error calculation of one point for one model
     int op_idx = blockIdx.y*num_samples + point_idx;
 
     if (point_idx < num_samples){

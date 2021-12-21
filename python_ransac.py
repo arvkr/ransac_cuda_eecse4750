@@ -3,8 +3,6 @@ import scipy
 import matplotlib.pyplot as plt
 import math
 import sys
-import os
-import datetime
 import time
 
 def find_line_model(points):
@@ -69,8 +67,6 @@ def ransac_plot(n, x, y, m, c, final=False, x_in=(), y_in=(), points=()):
  
     # put grid on the plot
     plt.grid(b=True, which='major', color='0.75', linestyle='--')
-    #plt.xticks([i for i in range(min(x) - 10, max(x) + 10, 5)])
-    #plt.yticks([i for i in range(min(y) - 20, max(y) + 20, 10)])
  
     # plot input points
     plt.plot(x[:,0], y[:,0], marker='o', label='Input points', color='#00cc00', linestyle='None', alpha=0.4)
@@ -97,6 +93,7 @@ def do_ransac(x_noise, y_noise, ransac_iterations, ransac_threshold, n_samples, 
 
     data = np.hstack( (x_noise,y_noise) )
     
+    # Variable to check if current model has more inliers than the best model so far
     ratio = 0.
     model_m = 0.
     model_c = 0.
@@ -105,16 +102,14 @@ def do_ransac(x_noise, y_noise, ransac_iterations, ransac_threshold, n_samples, 
     # os.makedirs(folder_name)
     
     tik = time.time()
-    # perform RANSAC iterations
 
-    # all_indices = np.arange(x_noise.shape[0])
-
+    # Make sure the randomly picked points for modelling are not the same
     same_indices = (maybe_indices1 == maybe_indices2)
     maybe_indices1[same_indices] +=1
-
     maybe_points1 = data[maybe_indices1, :]
     maybe_points2 = data[maybe_indices2, :]
 
+    # perform RANSAC iterations
     for it in range(ransac_iterations):
     
         # pick up two random points
@@ -148,7 +143,6 @@ def do_ransac(x_noise, y_noise, ransac_iterations, ransac_threshold, n_samples, 
         
         # Removing the cnt of points that were used for modelling from the inlier set
         num -=2
-        # print(num) 
         x_inliers = np.array(x_list)
         y_inliers = np.array(y_list)
     
@@ -164,17 +158,12 @@ def do_ransac(x_noise, y_noise, ransac_iterations, ransac_threshold, n_samples, 
     
         # plot the current step
         # ransac_plot(it, x_noise, y_noise, m, c, False, x_inliers, y_inliers, maybe_points)
-    
-        # # we are done in case we have enough inliers
-        # if num > n_samples*ransac_ratio:
-        #     print ('The model is found !')
-        #     break
 
     tok = time.time()
     # print('Time Taken = ', tok - tik)
 
     # plot the final model
-    ransac_plot(0, x_noise,y_noise, model_m, model_c, True)
+    # ransac_plot(0, x_noise,y_noise, model_m, model_c, True)
     
     # print ('\nFinal model:\n')
     # print ('  ratio = ', ratio)
@@ -201,7 +190,6 @@ if __name__ == "__main__":
         print(f'\n\nIteration {i}; n_samples {n_samples}')
         outliers_ratio = 0.4          # ratio of outliers
 
-        # What is the purpose of these 2 variables below:
         n_inputs = 1
         n_outputs = 1
 
@@ -236,6 +224,3 @@ if __name__ == "__main__":
         maybe_indices2 = np.random.choice(all_indices, size=(ransac_iterations), replace=True)
         
         do_ransac(x_noise, y_noise, ransac_iterations, ransac_threshold, n_samples, maybe_indices1, maybe_indices2)
-        # non-gaussian outliers (only on one side)
-        #y_noise[outlier_indices] = 30*(np.random.normal(size=(n_outliers,n_outputs))**2)
-

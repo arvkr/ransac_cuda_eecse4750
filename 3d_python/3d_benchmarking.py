@@ -6,15 +6,16 @@ import matplotlib.pyplot as plt
 from python_ransac_3d import do_ransac_3d as naive_ransac_3d
 from ransac_pycuda_3d_level4 import do_ransac_3d as cuda_ransac_3d
 
-def plot_benchmark(sizes, naive_time, cuda_time, cuda_mem_time, fname, xlabel, ylabel, title, logscale=True, plot_naive=False):
+def plot_benchmark(sizes, naive_time, cuda_time, cuda_mem_time, fname, xlabel, ylabel, title, logscale=True, plot_naive=False, plot_cuda_mem=False):
 
     fig, ax = plt.subplots(figsize=(10, 10))
     
     if plot_naive:
         ax.plot(sizes, naive_time, label = 'naive', marker='o')
     ax.plot(sizes, cuda_time, label = 'cuda', marker='o')
-    ax.plot(sizes, cuda_mem_time, label = 'cuda_mem_transfer', marker='o')
-    ax.plot(sizes, np.array(cuda_time) - np.array(cuda_mem_time), label = 'cuda_computation', marker='o')
+    if plot_cuda_mem:
+        ax.plot(sizes, cuda_mem_time, label = 'cuda_mem_transfer', marker='o')
+        ax.plot(sizes, np.array(cuda_time) - np.array(cuda_mem_time), label = 'cuda_computation', marker='o')
     if logscale:
         ax.set_xscale('log', base=2)
     ax.legend()
@@ -28,7 +29,11 @@ if __name__ == "__main__":
     n_samples_test = True
     ransac_iterations_test = True
     blockSize_test = True
+
+    # Whether to plot execution times for naive serial execution
     do_naive = True
+    # Whether to plot memory tranfer time for CUDA
+    plot_cuda_mem = False
 
     # Change dataset sample size and profile the execution time (including and excluding memory transfer)
     if n_samples_test:
@@ -49,7 +54,7 @@ if __name__ == "__main__":
         cuda_time = []
         cuda_mem_time = []
 
-        fname = 'ransac_3d_samples_cuda_mem.png'
+        fname = 'ransac_3d_samples_cuda.png'
         xlabel='Number of data samples'
         ylabel='Execution Time (seconds)'
         title='RANSAC for 3D points (num_models=20)'
@@ -117,7 +122,7 @@ if __name__ == "__main__":
             cuda_time.append(avg_time/num_runs)
             cuda_mem_time.append(avg_mem_time/num_runs)
 
-        plot_benchmark(n_samples_all, naive_time, cuda_time, cuda_mem_time, fname, xlabel, ylabel, title, plot_naive=do_naive)
+        plot_benchmark(n_samples_all, naive_time, cuda_time, cuda_mem_time, fname, xlabel, ylabel, title, plot_naive=do_naive, plot_cuda_mem=plot_cuda_mem)
 
 # ----------
 # ----------
@@ -140,7 +145,7 @@ if __name__ == "__main__":
         cuda_time = []
         cuda_mem_time = []
 
-        fname = 'ransac_3d_models_cuda_mem.png'
+        fname = 'ransac_3d_models_cuda.png'
         xlabel='Number of models'
         ylabel='Execution Time (seconds)'
         title='RANSAC for 3D points varying the number of models (num_samples = 1024)'
@@ -209,7 +214,7 @@ if __name__ == "__main__":
             cuda_time.append(avg_time/num_runs)
             cuda_mem_time.append(avg_mem_time/num_runs)
 
-        plot_benchmark(ransac_iterations_all, naive_time, cuda_time, cuda_mem_time, fname, xlabel, ylabel, title, False, plot_naive=do_naive)
+        plot_benchmark(ransac_iterations_all, naive_time, cuda_time, cuda_mem_time, fname, xlabel, ylabel, title, False, plot_naive=do_naive, plot_cuda_mem=plot_cuda_mem)
 
     # -----------------------------
     # -----------------------------

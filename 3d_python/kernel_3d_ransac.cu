@@ -84,3 +84,32 @@ __global__ void distance_3d_model_parallel_large(const double *points, double *o
         output[op_idx] = dist;
     } 
 }
+
+// More advanced version where error distance is calculated for all points and all models in parallel alongwith constant memory usage
+__global__ void distance_3d_model_parallel_large_const(const double *points, double *output, const double* __restrict__ a_all, const double* __restrict__ b_all, const double* __restrict__ c_all, const double* __restrict__ d_all, int num_samples){
+
+    int tx = threadIdx.x;
+    int point_idx = blockIdx.x * blockDim.x + tx;
+
+    // There are a total of blockDim.y models
+    double a = a_all[blockIdx.y];
+    double b = b_all[blockIdx.y];
+    double c = c_all[blockIdx.y];
+    double d = d_all[blockIdx.y];
+
+    // The output index for error calculation of one point for one model
+    int op_idx = blockIdx.y*num_samples + point_idx;
+
+    if (point_idx < num_samples){
+
+        double x0 = points[point_idx*3];
+        double y0 = points[point_idx*3 + 1];
+        double z0 = points[point_idx*3 + 2];
+
+        // intersection point with the model
+        double numer = abs(((a * x0) + (b * y0) + (c * z0) + d));
+        double denom = sqrt((a * a) + (b * b) + (c * c));
+        double dist = numer / denom;
+        output[op_idx] = dist;
+    } 
+}

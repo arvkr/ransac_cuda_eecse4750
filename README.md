@@ -15,7 +15,8 @@ $ cudaEnv
 implementation, it is important to read the code in these files.
 * To reproduce the benchmarks graphs for the 3D version of RANSAC as shown in the presentation and report, run the below command:
     * First graph generated is named `ransac_3d_samples_cuda.png` by default. This plots the execution time for serial and cuda as we vary the size of the dataset.
-    * Second graphs generated is named `ransac_3d_models_cuda.png` by default. This plots the execution time for serial and cuda as we vary the number of RANSAC models.
+    * Second graph generated is named `ransac_3d_models_cuda.png` by default. This plots the execution time for serial and cuda as we vary the number of RANSAC models.
+    * Third graph generated is named `ransac_3d_const_mem_cuda.png` by default. This evaluates the effect of constant memory on execution time.
     * By setting the boolean `plot_cuda_mem` to True, we can choose to also print the execution of split-up between memory transfer and computation time for CUDA.
     * It has been verified that the outputs between serial and CUDA match perfectly. Randomization has been taken into account be setting an initial seed value.
 ```
@@ -49,6 +50,7 @@ $ python ransac_pycuda_level4.py
 - `3d_python/python_ransac_3d.py` - Serial implementation of RANSAC for 3D datapoints
 - `3d_python/ransac_pycuda_3d_level4.py` - Fully parallelized of RANSAC for 3D datapoints. This version is called level 4 in the report and presentation.
 - `3d_python/kernel_3d_ransac.cu` - The CUDA kernels for 3D RANSAC
+- `3d_python/ransac_pycuda_3d_level4_constant.py` - Fully parallelized of RANSAC for 3D datapoints alongwith using constant memory. 
 - `3d_python/ransac_pycuda_3d_level2.py` - Level 2 parallelized of RANSAC for 3D datapoints. More description in the report/presentation.
 - `3d_python/ransac_pycuda_3d_level1.py` - Level 1 parallelized of RANSAC for 3D datapoints. More description in the report/presentation.
 

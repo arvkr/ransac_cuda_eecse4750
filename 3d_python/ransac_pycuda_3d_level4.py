@@ -70,7 +70,7 @@ def ransac_plot(n, x, y, z, a, b, c, d, final=False, x_in=(), y_in=(), z_in = ()
     # plt.savefig(folder_name + '/' + fname)
     plt.close()
 
-def do_ransac_3d(x_noise,y_noise, z_noise, ransac_iterations, ransac_threshold, ransac_ratio, n_samples, maybe_indices1, maybe_indices2, maybe_indices3, blockSize=1024):
+def do_ransac_3d(x_noise,y_noise, z_noise, ransac_iterations, ransac_threshold, ransac_ratio, n_samples, maybe_indices1, maybe_indices2, maybe_indices3, blockSize=1024, print_op=False):
 
     data = np.hstack( (x_noise,y_noise, z_noise))
     data = np.array(data)
@@ -217,14 +217,16 @@ def do_ransac_3d(x_noise,y_noise, z_noise, ransac_iterations, ransac_threshold, 
     # print('Mem Transfer Time = ', mem_transfer_time)
 
     # plot the final model
-    # ransac_plot(0, x_noise,y_noise, z_noise, a, b, c, d, True) 
+    if print_op:
+        ransac_plot(0, x_noise,y_noise, z_noise, a, b, c, d, True) 
 
-    # print ('\nFinal model:\n')
-    # print ('  ratio = ', ratio)
-    # print ('  model_a = ', model_a)
-    # print ('  model_b = ', model_b)
-    # print ('  model_c = ', model_c)
-    # print ('  model_d = ', model_d)
+    if print_op:
+        print ('\nFinal model:\n')
+        print ('  ratio = ', ratio)
+        print ('  model_a = ', model_a)
+        print ('  model_b = ', model_b)
+        print ('  model_c = ', model_c)
+        print ('  model_d = ', model_d)
     return tik.time_till(tok)/1000, mem_transfer_time
 
 if __name__ == "__main__":
@@ -281,6 +283,6 @@ if __name__ == "__main__":
     maybe_indices3 = np.random.choice(all_indices, size=(ransac_iterations), replace=True)
 
     # Perform best-level4 parallelized RANSAC
-    do_ransac_3d(x_noise,y_noise, z_noise, ransac_iterations, ransac_threshold, ransac_ratio, n_samples, maybe_indices1, maybe_indices2, maybe_indices3)
+    do_ransac_3d(x_noise,y_noise, z_noise, ransac_iterations, ransac_threshold, ransac_ratio, n_samples, maybe_indices1, maybe_indices2, maybe_indices3, print_op=True)
 
 

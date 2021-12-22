@@ -36,12 +36,12 @@ if __name__ == "__main__":
                                 # that a model fits well to data
         
         # generate sparse input data
-        # n_samples_all =  [128, 512, 1024, 4096, 8192, 16384, 65536, 262144, 1048576]          # number of input points||| Max tested = 3554432
-        n_samples_all =  [128, 512, 1024, 4096]          # number of input points||| Max tested = 3554432
+        n_samples_all =  [128, 512, 1024, 4096, 8192, 16384, 65536, 262144, 1048576]          # number of input points||| Max tested = 3554432
+        # n_samples_all =  [128, 512, 1024, 4096]          # number of input points||| Max tested = 3554432
         
         naive_time = []
         cuda_time = []
-        fname = 'ransac_2d.png'
+        fname = 'ransac_2d_samples.png'
         xlabel='Number of data samples'
         ylabel='Execution Time (seconds)'
         title='RANSAC for 2D points'

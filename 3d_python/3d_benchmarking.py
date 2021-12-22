@@ -47,7 +47,7 @@ if __name__ == "__main__":
         n_samples = 200
         n_samples_all =  [128, 512, 1024, 4096, 8192, 16384, 65536, 262144, 1048576, 2097152, 
                             4194304, 8388608]   # number of input points||| Max tested = 3554432
-        # n_samples_all =  [128, 512, 1024, 4096, 8192, 16384]   # number of input points||| Max tested = 3554432
+        # n_samples_all =  [128, 512, 1024, 4096, 8192]   # number of input points||| Max tested = 3554432
         outliers_ratio = 0.3          # ratio of outliers
         
         naive_time = []

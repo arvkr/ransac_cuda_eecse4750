@@ -177,7 +177,7 @@ same_indices = (maybe_indices2 == maybe_indices3)
 maybe_indices2[same_indices] +=1
 
 
-# pick up two random points
+# pick up three random points
 maybe_points1 = data[maybe_indices1, :]
 maybe_points2 = data[maybe_indices2, :]
 maybe_points3 = data[maybe_indices3, :]

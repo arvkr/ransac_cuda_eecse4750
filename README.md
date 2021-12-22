@@ -8,30 +8,11 @@
 ```
 $ cudaEnv
 ```
-## Description and Organization of the major files
-
-* It is possible to individually run any of the .py files below and view the sample outputs:
-
-```
-# For example,
-$ python ransac_pycuda_level4.py
-```
-#### 3D RANSAC
-- `3d_python/python_ransac_3d.py` - Serial implementation of RANSAC for 3D datapoints
-- `3d_python/ransac_pycuda_3d_level4.py` - Fully parallelized of RANSAC for 3D datapoints. This version is called level 4 in the report and presentation.
-- `3d_python/kernel_3d_ransac.cu` - The CUDA kernels for 3D RANSAC
-- `3d_python/ransac_pycuda_3d_level2.py` - Level 2 parallelized of RANSAC for 3D datapoints. More description in the report/presentation.
-- `3d_python/ransac_pycuda_3d_level1.py` - Level 1 parallelized of RANSAC for 3D datapoints. More description in the report/presentation.
-
-#### 2D RANSAC
-- `python_ransac.py` - Serial implementation of RANSAC for 2D datapoints
-- `ransac_pycuda_level4.py` - Fully parallelized of RANSAC for 2D datapoints. This version is called level 4 in the report and presentation.
-- `kernel_ransac.cu` - The CUDA kernels for 2D RANSAC
-- `ransac_pycuda_level3.py` - Level 3 parallelized of RANSAC for 2D datapoints. More description in the report/presentation.
-- `ransac_pycuda_level2.py` - Level 2 parallelized of RANSAC for 2D datapoints. More description in the report/presentation.
-- `ransac_pycuda_level1.py` - Level 1 parallelized of RANSAC for 2D datapoints. More description in the report/presentation.
 
 ## Benchmarking/Stress Tests for 3D RANSAC and 2D RANSAC
+
+* 3D and 2D RANSAC benchmarking has been done using `3d_python/python_ransac_3d.py`, `3d_python/ransac_pycuda_3d_level4.py`, `python_ransac.py`, `ransac_pycuda_level4.py`. Hence, if the reader want to understand the 
+implementation, it is important to read the code in these files.
 * To reproduce the benchmarks graphs for the 3D version of RANSAC as shown in the presentation and report, run the below command:
     * First graph generated is named `ransac_3d_samples_cuda.png` by default. This plots the execution time for serial and cuda as we vary the size of the dataset.
     * Second graphs generated is named `ransac_3d_models_cuda.png` by default. This plots the execution time for serial and cuda as we vary the number of RANSAC models.
@@ -54,3 +35,27 @@ $ nv-nsight-cu metrics.nsight-cuprof-report
 ```
 $ python benchmarking.py 
 ```
+
+
+## Description and Organization of the major files
+
+* It is possible to individually run any of the .py files below and view the sample outputs:
+
+```
+# For example,
+$ python ransac_pycuda_level4.py
+```
+#### 3D RANSAC
+- `3d_python/python_ransac_3d.py` - Serial implementation of RANSAC for 3D datapoints
+- `3d_python/ransac_pycuda_3d_level4.py` - Fully parallelized of RANSAC for 3D datapoints. This version is called level 4 in the report and presentation.
+- `3d_python/kernel_3d_ransac.cu` - The CUDA kernels for 3D RANSAC
+- `3d_python/ransac_pycuda_3d_level2.py` - Level 2 parallelized of RANSAC for 3D datapoints. More description in the report/presentation.
+- `3d_python/ransac_pycuda_3d_level1.py` - Level 1 parallelized of RANSAC for 3D datapoints. More description in the report/presentation.
+
+#### 2D RANSAC
+- `python_ransac.py` - Serial implementation of RANSAC for 2D datapoints
+- `ransac_pycuda_level4.py` - Fully parallelized of RANSAC for 2D datapoints. This version is called level 4 in the report and presentation.
+- `kernel_ransac.cu` - The CUDA kernels for 2D RANSAC
+- `ransac_pycuda_level3.py` - Level 3 parallelized of RANSAC for 2D datapoints. More description in the report/presentation.
+- `ransac_pycuda_level2.py` - Level 2 parallelized of RANSAC for 2D datapoints. More description in the report/presentation.
+- `ransac_pycuda_level1.py` - Level 1 parallelized of RANSAC for 2D datapoints. More description in the report/presentation.

@@ -1,3 +1,5 @@
 *.png
 *.jpg
 *.pyc
+!plots2d/*.png
+!3d_python/plots/*.png

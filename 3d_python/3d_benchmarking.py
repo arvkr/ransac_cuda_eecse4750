@@ -28,12 +28,10 @@ def plot_benchmark(sizes, naive_time, cuda_time, cuda_mem_time, fname, xlabel, y
     ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
     plt.savefig(fname)
 
-def plot_benchmark_const_mem(sizes, naive_time, cuda_time, cuda_mem_time, const_mem_cuda_time, const_mem_cuda_mem_time, fname, xlabel, ylabel, title, logscale=True, plot_naive=False, plot_cuda_mem=False):
+def plot_benchmark_const_mem(sizes, cuda_time, cuda_mem_time, const_mem_cuda_time, const_mem_cuda_mem_time, fname, xlabel, ylabel, title, logscale=True, plot_naive=False, plot_cuda_mem=False):
 
     fig, ax = plt.subplots(figsize=(10, 10))
-    
-    if plot_naive:
-        ax.plot(sizes, naive_time, label = 'naive', marker='o')
+
     ax.plot(sizes, cuda_time, label = 'cuda', marker='o')
     ax.plot(sizes, const_mem_cuda_time, label = 'cuda_constant_memory', marker='o')
     if plot_cuda_mem:
@@ -72,8 +70,9 @@ if __name__ == "__main__":
         
         # generate sparse input data
         n_samples = 200
-        n_samples_all =  [128, 512, 1024, 4096, 8192, 16384, 65536, 262144, 1048576, 2097152, 
-                            4194304, 8388608]   # number of input points||| Max tested = 3554432
+        n_samples_all =  [128, 512, 1024, 4096, 8192, 16384, 65536, 262144, 1048576]   # number of input points||| Max tested = 3554432
+        # n_samples_all =  [128, 512, 1024, 4096, 8192, 16384, 65536, 262144, 1048576, 2097152, 
+                            # 4194304, 8388608]   # number of input points||| Max tested = 3554432
         # n_samples_all =  [128, 512, 1024, 4096, 8192]   # number of input points||| Max tested = 3554432
         outliers_ratio = 0.3          # ratio of outliers
         
@@ -175,7 +174,7 @@ if __name__ == "__main__":
         fname = 'ransac_3d_models_cuda.png'
         xlabel='Number of models'
         ylabel='Execution Time (seconds)'
-        title='RANSAC for 3D points varying the number of models (num_samples = 1024)'
+        title='3D RANSAC varying num_models (num_samples=1024)'
         
         print('\n\nEvaluating the execution time with varying number of models')
         for i, ransac_iterations in enumerate(ransac_iterations_all):
@@ -334,7 +333,6 @@ if __name__ == "__main__":
         # n_samples_all =  [128, 512, 1024, 4096, 8192]   # number of input points||| Max tested = 3554432
         outliers_ratio = 0.3          # ratio of outliers
         
-        naive_time = []
         cuda_time = []
         cuda_mem_time = []
 
@@ -412,4 +410,4 @@ if __name__ == "__main__":
             const_mem_cuda_time.append(avg_time/num_runs)
             const_mem_cuda_mem_time.append(avg_mem_time/num_runs)
 
-        plot_benchmark_const_mem(n_samples_all, naive_time, cuda_time, cuda_mem_time, const_mem_cuda_time, const_mem_cuda_mem_time, fname, xlabel, ylabel, title, plot_naive=do_naive, plot_cuda_mem=plot_cuda_mem)
+        plot_benchmark_const_mem(n_samples_all, cuda_time, cuda_mem_time, const_mem_cuda_time, const_mem_cuda_mem_time, fname, xlabel, ylabel, title, plot_naive=do_naive, plot_cuda_mem=plot_cuda_mem)

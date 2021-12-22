@@ -1,9 +1,12 @@
 import numpy as np
 import scipy
 import matplotlib.pyplot as plt
+import matplotlib
 
 from python_ransac import do_ransac as naive_ransac
 from ransac_pycuda_level4 import do_ransac as cuda_ransac_level4
+
+matplotlib.rcParams.update({'font.size': 22})
 
 def plot_benchmark(sizes, naive_time, cuda_time, fname, xlabel, ylabel, title, logscale=True):
 
@@ -119,7 +122,7 @@ if __name__ == "__main__":
         fname = 'ransac_2d_models.png'
         xlabel='Number of models'
         ylabel='Execution Time (seconds)'
-        title='RANSAC for 2D points varying the number of models (num_samples = 1024)'
+        title='2D RANSAC varying num_models (num_samples=1024)'
 
         for i, ransac_iterations in enumerate(ransac_iterations_all):
         
